@@ -52,8 +52,8 @@ function FollowCamera({ state }: { state: React.MutableRefObject<GameRef> }) {
 // that illuminates the floor + nearby crystals + monsters.
 // Base values for the lantern's omnidirectional glow. The "breath" function
 // in useFrame modulates both intensity and distance around these.
-const LANTERN_BASE_INTENSITY = 45;      // PointLight intensity units (decay=2)
-const LANTERN_BASE_DISTANCE  = 22;      // world units of reach
+const LANTERN_BASE_INTENSITY = 160;     // PointLight intensity units (decay=2)
+const LANTERN_BASE_DISTANCE  = 34;      // world units of reach
 
 function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
