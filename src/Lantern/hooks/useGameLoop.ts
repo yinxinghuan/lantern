@@ -46,7 +46,10 @@ export interface GameRef {
 export function createGameState(): GameRef {
   return {
     pos: new THREE.Vector3(0, 0, 0),
-    rot: 0,
+    // Default facing up-screen (world -Z direction). With camera at (0, 16, 7)
+    // looking at origin, world +Z is screen-down; players intuitively expect
+    // their character to face up-screen / "forward into the unknown" at start.
+    rot: Math.PI,
     speed: 0,
     lightRadius: LIGHT_BASE_RADIUS,
     greenT: 0,

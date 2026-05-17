@@ -55,5 +55,6 @@ export const PILLAR_COUNT = 14;
 export const CAMERA_POS: [number, number, number] = [0, 16, 7];
 export const CAMERA_FOV = 55;
 
-// Grace
-export const GRACE_PERIOD = 1.0;
+// Grace — generous opening window so the player has time to orient before
+// the first dark-hand attempts a strike (which itself needs ~1.2s telegraph).
+export const GRACE_PERIOD = 3.0;
