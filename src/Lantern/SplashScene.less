@@ -178,6 +178,52 @@
     letter-spacing: -.01em;
   }
 
+  // How-to-play card — taught above the CTA so the player sees rules
+  // before tapping in. Compact: 4 colored crystal icons + labels + a
+  // one-line monster threat warning.
+  &__rules {
+    width: min(360px, 88%);
+    margin: 0 0 22px;
+    padding: 14px 18px 12px;
+    background: rgba(20, 14, 26, .42);
+    border: 1px solid rgba(255, 200, 130, .14);
+    border-radius: 14px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  &__rules-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    gap: 4px;
+    justify-items: center;
+    & + & { margin-top: 4px; }
+  }
+  &__rule-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
+  }
+  &__crystal-icon {
+    filter: drop-shadow(0 2px 8px rgba(255, 200, 120, .15));
+  }
+  &__rules-warn {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 90, 80, .18);
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .20em;
+    text-transform: uppercase;
+    color: rgba(255, 130, 110, .80);
+  }
+
   &__cta {
     position: relative;
     background: linear-gradient(135deg, #ffe17a 0%, #ff9844 60%, #ff6b3a 100%);

@@ -246,12 +246,18 @@ function Crystals({ state }: { state: React.MutableRefObject<GameRef> }) {
           >
             <mesh castShadow>
               <octahedronGeometry args={[0.35, 0]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} roughness={0.3} metalness={0.6} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} roughness={0.3} metalness={0.6} />
             </mesh>
-            {/* glow halo on the floor under each crystal */}
+            {/* inner halo — bright disc directly under the crystal */}
             <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <circleGeometry args={[0.45, 18]} />
-              <meshBasicMaterial color={color} transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+              <circleGeometry args={[0.65, 22]} />
+              <meshBasicMaterial color={color} transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
+            </mesh>
+            {/* outer halo — much wider, dim, so the crystal advertises its
+                position from beyond the lantern's direct reach */}
+            <mesh position={[0, -0.29, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[1.6, 28]} />
+              <meshBasicMaterial color={color} transparent opacity={0.18} depthWrite={false} blending={THREE.AdditiveBlending} />
             </mesh>
           </group>
         );
@@ -260,23 +266,125 @@ function Crystals({ state }: { state: React.MutableRefObject<GameRef> }) {
   );
 }
 
-// Cave pillars / stalagmites — static decoration with shadow value
+// Cave pillars / stalagmites. Three variants (spike / dome / cluster) so the
+// arena reads as a varied cave rather than a forest of identical cones —
+// gives the player landmarks to track their position between sweeps.
 function Pillars({ state }: { state: React.MutableRefObject<GameRef> }) {
   const d = state.current;
   return (
     <>
       {d.pillars.map(p => (
         <group key={p.id} position={[p.position.x, 0, p.position.z]} rotation={[0, p.rot, 0]} scale={p.scale}>
-          <mesh position={[0, 1.0, 0]} castShadow>
-            <coneGeometry args={[0.45, 2.4, 8]} />
-            <meshStandardMaterial color="#3a322a" roughness={0.95} />
-          </mesh>
-          <mesh position={[0, 0.15, 0]} castShadow>
-            <cylinderGeometry args={[0.55, 0.7, 0.30, 10]} />
-            <meshStandardMaterial color="#2a221a" roughness={0.95} />
-          </mesh>
+          {p.variant === 'spike' && (
+            <>
+              <mesh position={[0, 1.0, 0]} castShadow>
+                <coneGeometry args={[0.45, 2.4, 8]} />
+                <meshStandardMaterial color="#3a322a" roughness={0.95} />
+              </mesh>
+              <mesh position={[0, 0.15, 0]} castShadow>
+                <cylinderGeometry args={[0.55, 0.7, 0.30, 10]} />
+                <meshStandardMaterial color="#2a221a" roughness={0.95} />
+              </mesh>
+            </>
+          )}
+          {p.variant === 'dome' && (
+            <>
+              <mesh position={[0, 0.55, 0]} castShadow>
+                <sphereGeometry args={[0.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                <meshStandardMaterial color="#322a22" roughness={1} />
+              </mesh>
+              <mesh position={[0, 0.05, 0]} castShadow>
+                <cylinderGeometry args={[1.05, 1.15, 0.10, 14]} />
+                <meshStandardMaterial color="#241c14" roughness={1} />
+              </mesh>
+            </>
+          )}
+          {p.variant === 'cluster' && (
+            <>
+              <mesh position={[-0.30, 0.6, 0]} rotation={[0, 0, -0.18]} castShadow>
+                <coneGeometry args={[0.32, 1.4, 7]} />
+                <meshStandardMaterial color="#3a322a" roughness={0.95} />
+              </mesh>
+              <mesh position={[0.25, 0.85, 0.15]} rotation={[0, 0.4, 0.10]} castShadow>
+                <coneGeometry args={[0.36, 1.9, 7]} />
+                <meshStandardMaterial color="#3a322a" roughness={0.95} />
+              </mesh>
+              <mesh position={[0.10, 0.45, -0.30]} castShadow>
+                <coneGeometry args={[0.28, 1.0, 7]} />
+                <meshStandardMaterial color="#322a22" roughness={0.95} />
+              </mesh>
+              <mesh position={[0, 0.10, 0]} castShadow>
+                <cylinderGeometry args={[0.85, 0.95, 0.18, 12]} />
+                <meshStandardMaterial color="#241c14" roughness={1} />
+              </mesh>
+            </>
+          )}
         </group>
       ))}
+    </>
+  );
+}
+
+// Central altar / extinguished fire bowl — a fixed landmark at world origin.
+// Players always know "here is home" by seeing it. Faint cyan ash glow
+// reads as "the old fire, long cold" — narratively reinforces the lantern
+// the player carries being the only living flame.
+function Altar() {
+  const ashMat = useRef<THREE.MeshStandardMaterial>(null);
+  useFrame(({ clock }) => {
+    if (ashMat.current) {
+      const t = clock.getElapsedTime();
+      ashMat.current.emissiveIntensity = 0.55 + Math.sin(t * 0.7) * 0.18;
+    }
+  });
+  return (
+    <group position={[0, 0, 0]}>
+      {/* stone ring base */}
+      <mesh position={[0, 0.08, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1.2, 1.35, 0.16, 24]} />
+        <meshStandardMaterial color="#2a231b" roughness={1} />
+      </mesh>
+      {/* basin lip */}
+      <mesh position={[0, 0.28, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1.05, 1.10, 0.24, 24]} />
+        <meshStandardMaterial color="#2e261d" roughness={0.95} />
+      </mesh>
+      {/* hollow interior — torus to read as a bowl rim */}
+      <mesh position={[0, 0.42, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.95, 0.10, 8, 22]} />
+        <meshStandardMaterial color="#1a140e" roughness={1} />
+      </mesh>
+      {/* cold ash — faint cyan emissive, subtle pulse */}
+      <mesh position={[0, 0.38, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.85, 24]} />
+        <meshStandardMaterial ref={ashMat} color="#3a4e5a" emissive="#5e8aa8" emissiveIntensity={0.55} roughness={1} />
+      </mesh>
+    </group>
+  );
+}
+
+// Glowing moss / cracks at the inside-base of the perimeter walls. Cool
+// blue-green so the player sees the boundary even when the warm lantern
+// hasn't reached it — without breaking the dark-cave mood.
+function WallEdges() {
+  return (
+    <>
+      <mesh position={[0, 0.05, -ARENA_HALF + 0.05]}>
+        <boxGeometry args={[ARENA_HALF * 2.0, 0.10, 0.08]} />
+        <meshStandardMaterial color="#0a1a18" emissive="#1f6e74" emissiveIntensity={0.8} />
+      </mesh>
+      <mesh position={[0, 0.05,  ARENA_HALF - 0.05]}>
+        <boxGeometry args={[ARENA_HALF * 2.0, 0.10, 0.08]} />
+        <meshStandardMaterial color="#0a1a18" emissive="#1f6e74" emissiveIntensity={0.8} />
+      </mesh>
+      <mesh position={[-ARENA_HALF + 0.05, 0.05, 0]}>
+        <boxGeometry args={[0.08, 0.10, ARENA_HALF * 2.0]} />
+        <meshStandardMaterial color="#0a1a18" emissive="#1f6e74" emissiveIntensity={0.8} />
+      </mesh>
+      <mesh position={[ ARENA_HALF - 0.05, 0.05, 0]}>
+        <boxGeometry args={[0.08, 0.10, ARENA_HALF * 2.0]} />
+        <meshStandardMaterial color="#0a1a18" emissive="#1f6e74" emissiveIntensity={0.8} />
+      </mesh>
     </>
   );
 }
@@ -334,13 +442,17 @@ function Walls({ state }: { state: React.MutableRefObject<GameRef> }) {
   );
 }
 
-// Monsters — dark twisted shapes. Eyes glow yellow when lurking, white when
-// fleeing. When striking, a tendril (dark hand) extends toward the player
-// during the telegraph + live windows.
+// Monsters — dark twisted shapes. Eyes glow yellow when lurking, red when
+// striking. During the 1.2s strike telegraph: a pulsing red floor ring at
+// the monster's feet AND a stretching tendril aimed at the player. Both
+// flash on the live-hit frame.
 function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
   const tendrilRefs = useRef<Map<number, THREE.Mesh>>(new Map());
   const tendrilMats = useRef<Map<number, THREE.MeshStandardMaterial>>(new Map());
+  const ringRefs = useRef<Map<number, THREE.Mesh>>(new Map());
+  const ringMats = useRef<Map<number, THREE.MeshBasicMaterial>>(new Map());
+  const eyeMats = useRef<Map<number, [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial]>>(new Map());
   const [, force] = useState(0);
   const lastCount = useRef(-1);
 
@@ -359,25 +471,60 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
         // bob slightly while lurking
         g.position.y = Math.abs(Math.sin(t * 2 + m.id)) * 0.12;
       }
+      const striking = m.state === 'striking';
+      const phase = striking ? m.strikeT / MONSTER_STRIKE_TELEGRAPH : 0;
+      const live = striking && m.strikeT >= MONSTER_STRIKE_TELEGRAPH;
+
+      // Tendril
       const tendril = tendrilRefs.current.get(m.id);
       const tMat = tendrilMats.current.get(m.id);
       if (tendril && tMat) {
-        const striking = m.state === 'striking';
         tendril.visible = striking;
         if (striking) {
-          const phase = m.strikeT / MONSTER_STRIKE_TELEGRAPH;
-          // Telegraph: tendril grows from short to full reach. Live: pulse.
-          const live = m.strikeT >= MONSTER_STRIKE_TELEGRAPH;
           const reach = live
             ? MONSTER_STRIKE_RANGE_MAX
             : Math.min(1, phase) * MONSTER_STRIKE_RANGE_MAX;
-          // place tendril halfway between monster and reach point, aligned to aimXZ
           const ax = m.strikeAimX;
           const az = m.strikeAimZ;
           tendril.position.set(ax * reach * 0.5, 0.65, az * reach * 0.5);
           tendril.rotation.set(0, Math.atan2(ax, az), 0);
-          tendril.scale.set(0.15, reach, 0.15);
-          tMat.emissiveIntensity = live ? 2.4 : 0.6 + phase * 1.4;
+          // Thicker tendril (0.15 → 0.22) so it's easier to spot in the dark.
+          tendril.scale.set(0.22, reach, 0.22);
+          tMat.emissiveIntensity = live ? 4.0 : 1.2 + phase * 2.4;
+        }
+      }
+
+      // Strike-warning floor ring at monster feet. Pulses scale + opacity
+      // through the telegraph so the player has a clear "DON'T BE THERE"
+      // indicator even at the edge of their lantern reach.
+      const ring = ringRefs.current.get(m.id);
+      const rMat = ringMats.current.get(m.id);
+      if (ring && rMat) {
+        ring.visible = striking;
+        if (striking) {
+          // Pulse: 1.6 Hz oscillation on size + opacity
+          const pulse = 0.8 + Math.sin(t * 12) * 0.20;
+          const baseScale = 1.0 + phase * 0.9;          // grows as windup builds
+          ring.scale.set(baseScale * pulse, 1, baseScale * pulse);
+          rMat.opacity = live ? 0.95 : 0.50 + phase * 0.40;
+        }
+      }
+
+      // Eye color flip — yellow when lurking/fleeing/cooldown, red when
+      // mid-strike so the player knows WHICH monster is the one launching.
+      const eyes = eyeMats.current.get(m.id);
+      if (eyes) {
+        if (striking) {
+          eyes[0].emissive.setHex(0xff2828);
+          eyes[1].emissive.setHex(0xff2828);
+          const pulse = 1.6 + Math.sin(t * 12) * 0.7;
+          eyes[0].emissiveIntensity = pulse;
+          eyes[1].emissiveIntensity = pulse;
+        } else {
+          eyes[0].emissive.setHex(0xffa820);
+          eyes[1].emissive.setHex(0xffa820);
+          eyes[0].emissiveIntensity = 1.4;
+          eyes[1].emissiveIntensity = 1.4;
         }
       }
     }
@@ -404,12 +551,28 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
             <torusGeometry args={[0.28, 0.06, 6, 14]} />
             <meshStandardMaterial color="#1a1422" roughness={0.85} />
           </mesh>
-          {/* glowing eyes */}
-          <mesh position={[-0.12, 1.25, 0.40]}>
+          {/* glowing eyes (emissive updated per-frame so they can turn red) */}
+          <mesh
+            position={[-0.12, 1.25, 0.40]}
+            ref={el => {
+              if (!el) { eyeMats.current.delete(m.id); return; }
+              const prev = eyeMats.current.get(m.id);
+              const left = el.material as THREE.MeshStandardMaterial;
+              eyeMats.current.set(m.id, [left, prev ? prev[1] : (left)]);
+            }}
+          >
             <sphereGeometry args={[0.06, 10, 8]} />
             <meshStandardMaterial color="#ffdc4a" emissive="#ffa820" emissiveIntensity={1.4} />
           </mesh>
-          <mesh position={[ 0.12, 1.25, 0.40]}>
+          <mesh
+            position={[0.12, 1.25, 0.40]}
+            ref={el => {
+              if (!el) return;
+              const prev = eyeMats.current.get(m.id);
+              const right = el.material as THREE.MeshStandardMaterial;
+              eyeMats.current.set(m.id, [prev ? prev[0] : right, right]);
+            }}
+          >
             <sphereGeometry args={[0.06, 10, 8]} />
             <meshStandardMaterial color="#ffdc4a" emissive="#ffa820" emissiveIntensity={1.4} />
           </mesh>
@@ -418,8 +581,24 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
             <circleGeometry args={[0.6, 18]} />
             <meshBasicMaterial color="#000" transparent opacity={0.55} />
           </mesh>
+          {/* Strike-warning floor ring — flat on the ground, only shown
+              while striking, scales/pulses through the telegraph window. */}
+          <mesh
+            position={[0, 0.04, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            visible={false}
+            ref={el => {
+              if (!el) { ringRefs.current.delete(m.id); ringMats.current.delete(m.id); return; }
+              ringRefs.current.set(m.id, el);
+              ringMats.current.set(m.id, el.material as THREE.MeshBasicMaterial);
+            }}
+          >
+            <ringGeometry args={[0.95, 1.15, 32]} />
+            <meshBasicMaterial color="#ff3838" transparent opacity={0.6} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+          </mesh>
           {/* dark-hand tendril — appears during 'striking' state, scale along
-              local Y is set per-frame to grow from 0 → full reach */}
+              local Y is set per-frame to grow from 0 → full reach. Red-hot
+              emissive so it pops against the cave's cool periphery. */}
           <mesh
             ref={el => {
               if (el) {
@@ -433,7 +612,7 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
             visible={false}
           >
             <cylinderGeometry args={[1, 1, 1, 8]} />
-            <meshStandardMaterial color="#1a0020" emissive="#a020c0" emissiveIntensity={1.0} transparent opacity={0.85} />
+            <meshStandardMaterial color="#1a0008" emissive="#ff3030" emissiveIntensity={1.4} transparent opacity={0.92} />
           </mesh>
         </group>
       ))}
@@ -490,6 +669,8 @@ export function Scene(props: SceneProps) {
         <meshStandardMaterial color="#100a08" roughness={1} />
       </mesh>
 
+      <Altar />
+      <WallEdges />
       <Pillars state={state} />
       <Crystals state={state} />
       <Walls state={state} />

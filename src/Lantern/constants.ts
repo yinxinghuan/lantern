@@ -48,8 +48,10 @@ export const SCORE_GREEN = 8;
 export const SCORE_BLUE = 8;
 export const SCORE_DEPTH_PER_UNIT = 5;
 
-// Pillars (decoration / cover)
-export const PILLAR_COUNT = 14;
+// Pillars (decoration / cover / landmarks). Bumped from 14 → 28 so the
+// open arena gets enough visual reference points for the player to keep
+// orientation between forays.
+export const PILLAR_COUNT = 28;
 
 // Camera
 export const CAMERA_POS: [number, number, number] = [0, 16, 7];

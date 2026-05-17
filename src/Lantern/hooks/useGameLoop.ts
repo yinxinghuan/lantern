@@ -14,7 +14,7 @@ import {
   PILLAR_COUNT, GRACE_PERIOD,
 } from '../constants';
 import type { CrystalType } from '../constants';
-import type { Crystal, FxEvent, Monster, Pillar, Stick } from '../types';
+import type { Crystal, FxEvent, Monster, Pillar, PillarVariant, Stick } from '../types';
 
 export type SfxKey = 'pickup_gold' | 'pickup_red' | 'pickup_green' | 'pickup_blue' | 'strike_telegraph' | 'strike_hit' | 'wall_pulse' | 'monster_flee' | 'game_over';
 
@@ -45,7 +45,11 @@ export interface GameRef {
 
 export function createGameState(): GameRef {
   return {
-    pos: new THREE.Vector3(0, 0, 0),
+    // Spawn the player a few units south of the altar (which sits at the
+    // world origin). Lets the player SEE their "home base" — they're not
+    // standing on top of it. With camera looking down-and-south, the altar
+    // is up-screen of the player at spawn.
+    pos: new THREE.Vector3(0, 0, 5),
     // Default facing up-screen (world -Z direction). With camera at (0, 16, 7)
     // looking at origin, world +Z is screen-down; players intuitively expect
     // their character to face up-screen / "forward into the unknown" at start.
@@ -115,14 +119,38 @@ function spawnCrystal(d: GameRef, type?: CrystalType) {
   d.crystals.push({ id: nextId(), position: pos, type: t });
 }
 
+// Pillar variant weights — spikes are common (the cave-ceiling-drips look),
+// domes (round boulders) less so, clusters (small stone groups) the rarest.
+const PILLAR_VARIANT_WEIGHTS: { v: PillarVariant; w: number }[] = [
+  { v: 'spike',   w: 5 },
+  { v: 'dome',    w: 3 },
+  { v: 'cluster', w: 2 },
+];
+function pickPillarVariant(): PillarVariant {
+  const total = PILLAR_VARIANT_WEIGHTS.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const x of PILLAR_VARIANT_WEIGHTS) {
+    r -= x.w;
+    if (r <= 0) return x.v;
+  }
+  return 'spike';
+}
+
 function spawnPillar(): Pillar {
-  const x = (Math.random() - 0.5) * (PLAYFIELD - 6);
-  const z = (Math.random() - 0.5) * (PLAYFIELD - 6);
+  // Keep pillars away from the dead center (where the altar sits) and the
+  // very edge (where the perimeter wall hugs).
+  let x: number, z: number;
+  for (let i = 0; i < 20; i++) {
+    x = (Math.random() - 0.5) * (PLAYFIELD - 6);
+    z = (Math.random() - 0.5) * (PLAYFIELD - 6);
+    if (Math.hypot(x, z) > 4) break;
+  }
   return {
     id: nextId(),
-    position: new THREE.Vector3(x, 0, z),
-    scale: 0.8 + Math.random() * 1.6,
+    position: new THREE.Vector3(x!, 0, z!),
+    scale: 0.75 + Math.random() * 1.6,
     rot: Math.random() * Math.PI * 2,
+    variant: pickPillarVariant(),
   };
 }
 

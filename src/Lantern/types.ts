@@ -36,11 +36,14 @@ export interface Wall {
   bornAt: number;
 }
 
+export type PillarVariant = 'spike' | 'dome' | 'cluster';
+
 export interface Pillar {
   id: number;
   position: THREE.Vector3;
   scale: number;
   rot: number;
+  variant: PillarVariant;
 }
 
 export interface FxEvent {

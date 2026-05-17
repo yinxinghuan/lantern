@@ -20,6 +20,15 @@ interface Pellet { id: number; kind: PickupKind; value: number; dx: number; dy: 
 
 let pelletIdCounter = 1;
 
+// One-line description of each pickup's effect — teaches the mechanic by
+// showing what just happened, in plain English, on top of the score amount.
+const PICKUP_LABEL: Record<PickupKind, string> = {
+  gold:  'GOLD',
+  red:   'LANTERN +0.5',
+  green: 'STRONG LIGHT 5s',
+  blue:  'WALL · 5s',
+};
+
 export function Lantern() {
   const [phase, setPhase] = useState<Phase>('splash');
   const [score, setScore] = useState(0);
@@ -170,7 +179,8 @@ export function Lantern() {
       {showCanvas && <img className="ln__watermark" src={alteruSvg} alt="AlterU" />}
 
       {/* Floating "+N" pickup pellets — anchored near screen center because
-          the follow camera keeps the player there. Color per crystal type. */}
+          the follow camera keeps the player there. Color per crystal type.
+          The second line teaches the mechanic ("LANTERN +0.5", etc). */}
       {phase === 'playing' && pellets.length > 0 && (
         <div className="ln__pellets">
           {pellets.map(p => (
@@ -179,7 +189,8 @@ export function Lantern() {
               className={`ln__pellet ln__pellet--${p.kind}`}
               style={{ left: `${p.dx}px`, top: `${p.dy}px` }}
             >
-              +{p.value}
+              <span className="ln__pellet-amount">+{p.value}</span>
+              <span className="ln__pellet-label">{PICKUP_LABEL[p.kind]}</span>
             </div>
           ))}
         </div>

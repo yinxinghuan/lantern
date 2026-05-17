@@ -7,6 +7,26 @@
 import { useState } from 'react';
 import { t } from '../i18n';
 
+// Small octahedron-style crystal icon for the splash how-to-play row.
+// Diamond outline + inner gradient give it the same "facet" read as the
+// in-game octahedron meshes.
+function CrystalIcon({ color }: { color: string }) {
+  return (
+    <svg width="38" height="38" viewBox="0 0 32 32" className="ln-splash__crystal-icon">
+      <defs>
+        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity=".9" />
+          <stop offset="50%" stopColor={color} stopOpacity="1" />
+          <stop offset="100%" stopColor={color} stopOpacity=".55" />
+        </linearGradient>
+      </defs>
+      <polygon points="16,2 28,16 16,30 4,16" fill={`url(#grad-${color})`} stroke={color} strokeWidth="1.2" />
+      <polyline points="4,16 16,12 28,16" fill="none" stroke="#ffffff" strokeOpacity=".55" strokeWidth="1" />
+      <line x1="16" y1="2" x2="16" y2="30" stroke="#ffffff" strokeOpacity=".18" strokeWidth="0.8" />
+    </svg>
+  );
+}
+
 interface Speck {
   id: number;
   x: number;       // 0..100 (%)
@@ -128,6 +148,27 @@ export function SplashScene({ onStart, highScore }: { onStart: () => void; highS
             <span className="ln-splash__best-value">{highScore}</span>
           </div>
         )}
+
+        {/* How-to-play card — teach the 4 crystal effects + monster threat
+            before the player enters the cave. SVG crystal icons match the
+            in-game emissive colors. */}
+        <div className="ln-splash__rules">
+          <div className="ln-splash__rules-row">
+            <CrystalIcon color="#ffd64a" />
+            <CrystalIcon color="#ff5e5e" />
+            <CrystalIcon color="#54ff8e" />
+            <CrystalIcon color="#5aa8ff" />
+          </div>
+          <div className="ln-splash__rules-row">
+            <span className="ln-splash__rule-label" style={{ color: '#ffd64a' }}>+10</span>
+            <span className="ln-splash__rule-label" style={{ color: '#ff8c6a' }}>LANTERN+</span>
+            <span className="ln-splash__rule-label" style={{ color: '#7cff9e' }}>STRONG 5s</span>
+            <span className="ln-splash__rule-label" style={{ color: '#8ec0ff' }}>WALL 5s</span>
+          </div>
+          <div className="ln-splash__rules-warn">
+            DARK HANDS REACH FROM BEYOND THE LIGHT
+          </div>
+        </div>
 
         <button className="ln-splash__cta" onPointerDown={onStart}>
           <span className="ln-splash__cta-text">{t('tap_to_start')}</span>

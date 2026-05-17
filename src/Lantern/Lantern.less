@@ -216,17 +216,32 @@
   }
   &__pellet {
     position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    animation: ln-pellet-up 1200ms cubic-bezier(.22,.61,.36,1) forwards;
+    color: #ffd64a;
+    text-shadow: 0 2px 12px rgba(0,0,0,.85);
+    &--gold  { color: #ffd64a; }
+    &--red   { color: #ff9a6a; }
+    &--green { color: #6cff9e; }
+    &--blue  { color: #6fc6ff; }
+  }
+  &__pellet-amount {
     font-family: 'Baloo 2', 'Inter', sans-serif;
     font-weight: 800;
     font-size: 28px;
-    pointer-events: none;
-    text-shadow: 0 2px 12px rgba(0,0,0,.75);
-    animation: ln-pellet-up 800ms cubic-bezier(.22,.61,.36,1) forwards;
-    color: #ffd64a;
-    &--gold  { color: #ffd64a; }
-    &--red   { color: #ff8c5a; }
-    &--green { color: #6cff9e; }
-    &--blue  { color: #6fc6ff; }
+    line-height: 1;
+  }
+  &__pellet-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: .14em;
+    line-height: 1;
+    margin-top: 4px;
+    opacity: .9;
   }
   &__hit-flash {
     position: absolute;
