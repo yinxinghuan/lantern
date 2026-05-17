@@ -7,7 +7,7 @@ import {
   WALL_RADIUS, WALL_DURATION,
   MONSTER_STRIKE_RANGE_MAX, MONSTER_STRIKE_TELEGRAPH,
 } from '../constants';
-import { useGameLoop, GameRef, SfxKey } from '../hooks/useGameLoop';
+import { useGameLoop, GameRef, PickupKind, SfxKey } from '../hooks/useGameLoop';
 import type { Stick } from '../types';
 
 interface SceneProps {
@@ -18,6 +18,8 @@ interface SceneProps {
   onDepth: (d: number) => void;
   onLightRadius: (r: number) => void;
   onGameOver: (final: number) => void;
+  onPickup?: (kind: PickupKind, value: number) => void;
+  onStrikeHit?: () => void;
   playSfx: (k: SfxKey) => void;
   haptic?: (k: 'light' | 'heavy') => void;
 }
@@ -51,7 +53,6 @@ function FollowCamera({ state }: { state: React.MutableRefObject<GameRef> }) {
 function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
   const lanternMat = useRef<THREE.MeshStandardMaterial>(null);
-  const coneMat = useRef<THREE.MeshBasicMaterial>(null);
   // SpotLight + its target are wired explicitly via refs each frame because
   // three.js doesn't auto-update a target's matrixWorld when the target is
   // only attached as a `target` property (vs being a real scene-graph child).
@@ -65,9 +66,6 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
     groupRef.current.position.copy(d.pos);
     groupRef.current.rotation.y = d.rot;
     if (spotRef.current && targetRef.current) {
-      // Re-bind target every frame so r3f re-attach doesn't drop it; force
-      // target world matrix to update so the spotLight direction follows
-      // the parent group's current rotation.
       if (spotRef.current.target !== targetRef.current) {
         spotRef.current.target = targetRef.current;
       }
@@ -76,8 +74,6 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
     if (lanternMat.current) {
       lanternMat.current.emissiveIntensity = 3.2 + Math.sin(clock.getElapsedTime() * 4) * 0.4;
     }
-    const breathe = 1 + Math.sin(clock.getElapsedTime() * 2.4) * 0.05;
-    if (coneMat.current) coneMat.current.opacity = 0.18 * breathe;
   });
   return (
     <group ref={groupRef}>
@@ -118,52 +114,45 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         <meshStandardMaterial ref={lanternMat} color="#ffe9a0" emissive="#ffd24a" emissiveIntensity={3.2} />
       </mesh>
 
-      {/* Real SpotLight — broad, bright cone that carves a bright wedge of
-          cave floor in front. Target is rendered as a sibling Object3D so
-          its matrixWorld updates with the parent group rotation; the
-          useFrame above re-binds spotLight.target each tick. */}
+      {/* Real SpotLight — the lantern's actual scene-illuminating cone.
+          Strengthened (intensity 260) since the decorative volumetric beam
+          was removed; this is now the sole source of forward floor light. */}
       <spotLight
         ref={spotRef}
         position={[0, 1.05, 0.40]}
         angle={Math.PI / 3.0}
         penumbra={0.5}
-        intensity={180}
-        distance={24}
-        decay={0.85}
-        color="#fff2c0"
-        castShadow
+        intensity={600}
+        distance={32}
+        decay={0.70}
+        color="#ffd189"
       />
       <object3D ref={targetRef} position={[0, -1.0, 4]} />
       {/* Local PointLight at the lantern — short-range warm bounce so the
           player's body, hat and feet are visible from the camera above,
           not just a featureless silhouette. */}
-      <pointLight position={[0, 1.0, 0.5]} color="#ffcc70" intensity={2.4} distance={3.5} decay={1.0} />
+      <pointLight position={[0, 1.0, 0.5]} color="#ffb060" intensity={2.4} distance={3.5} decay={1.0} />
 
-      {/* VOLUMETRIC BEAM CONE — two layers (halo + core) so the beam reads
-          like an actual flashlight rather than a faint triangle. Position +
-          rotation derived so apex anchors at the lantern (~y=1.0, z=0.5)
-          and base lands flat on the floor 3.7u forward.
-            mesh.position.y = 1.0 - 1.675·cos(72.5°) = 0.50
-            mesh.position.z = 0.5 + 1.675·sin(72.5°) = 2.10 */}
+      {/* Volumetric beam cone — softer than before so it complements the
+          (now strong + warm) hard SpotLight without overpowering it. Two
+          layers: halo + thinner core. Apex anchored at the lantern. */}
       <mesh position={[0, 0.50, 2.10]} rotation={[-Math.PI * 0.403, 0, 0]}>
         <coneGeometry args={[1.6, 3.35, 28, 1, true]} />
         <meshBasicMaterial
-          ref={coneMat}
-          color="#fff2c0"
+          color="#ffd28a"
           transparent
-          opacity={0.32}
+          opacity={0.16}
           side={THREE.DoubleSide}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
         />
       </mesh>
-      {/* Brighter inner core — thinner cone, hotter color */}
       <mesh position={[0, 0.50, 2.10]} rotation={[-Math.PI * 0.403, 0, 0]}>
         <coneGeometry args={[0.9, 3.35, 24, 1, true]} />
         <meshBasicMaterial
-          color="#fff5d8"
+          color="#ffe1a8"
           transparent
-          opacity={0.34}
+          opacity={0.18}
           side={THREE.DoubleSide}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
@@ -180,6 +169,59 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         <meshStandardMaterial color="#1a0e08" />
       </mesh>
     </group>
+  );
+}
+
+// Drifting glow specks — atmospheric extra borrowed from Piper's night
+// preset. Cool blue-white so they read as cave-spirits against the warm
+// lantern. Each firefly is a tiny additive-blended sphere (round, glowy)
+// rather than gl_POINT (which renders as a square sprite). Positions are
+// world-space so they linger as the player moves through them.
+function Fireflies() {
+  const COUNT = 50;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const { positions, vel, dummy } = useMemo(() => {
+    const positions = new Float32Array(COUNT * 3);
+    const vel = new Float32Array(COUNT * 3);
+    const W = ARENA_HALF * 1.6;
+    for (let i = 0; i < COUNT; i++) {
+      positions[i * 3 + 0] = (Math.random() - 0.5) * W;
+      positions[i * 3 + 1] = 0.4 + Math.random() * 2.4;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * W;
+      vel[i * 3 + 0] = (Math.random() - 0.5) * 0.35;
+      vel[i * 3 + 1] = (Math.random() - 0.5) * 0.20;
+      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.35;
+    }
+    return { positions, vel, dummy: new THREE.Object3D() };
+  }, []);
+  useFrame(({ clock }, delta) => {
+    const m = meshRef.current;
+    if (!m) return;
+    const c = Math.min(delta, 0.05);
+    const t = clock.getElapsedTime();
+    const W = ARENA_HALF * 1.6;
+    for (let i = 0; i < COUNT; i++) {
+      const xi = i * 3, yi = i * 3 + 1, zi = i * 3 + 2;
+      positions[xi] += vel[xi] * c + Math.sin(t * 0.6 + i) * 0.004;
+      positions[yi] += vel[yi] * c;
+      positions[zi] += vel[zi] * c + Math.cos(t * 0.5 + i * 1.3) * 0.004;
+      if (positions[yi] < 0.3 || positions[yi] > 3.0) vel[yi] *= -1;
+      if (Math.abs(positions[xi]) > W / 2) vel[xi] *= -1;
+      if (Math.abs(positions[zi]) > W / 2) vel[zi] *= -1;
+      // Per-instance twinkle via scale
+      const twinkle = 0.7 + Math.sin(t * 1.6 + i * 0.7) * 0.3;
+      dummy.position.set(positions[xi], positions[yi], positions[zi]);
+      dummy.scale.setScalar(twinkle);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, COUNT]}>
+      <sphereGeometry args={[0.06, 8, 6]} />
+      <meshBasicMaterial color="#cfe2ff" transparent opacity={0.85} depthWrite={false} blending={THREE.AdditiveBlending} />
+    </instancedMesh>
   );
 }
 
@@ -426,6 +468,8 @@ export function Scene(props: SceneProps) {
     onDepth: props.onDepth,
     onLightRadius: props.onLightRadius,
     onGameOver: props.onGameOver,
+    onPickup: props.onPickup,
+    onStrikeHit: props.onStrikeHit,
     playSfx: props.playSfx,
     haptic: props.haptic,
   });
@@ -434,13 +478,18 @@ export function Scene(props: SceneProps) {
     <>
       <FollowCamera state={state} />
       {/* Cave ambient — very dark with a tiny up-fill so silhouettes are barely visible outside the lantern */}
-      <fog attach="fog" args={['#040308', 6, 22]} />
-      <ambientLight intensity={0.28} color="#2a1e36" />
-      <hemisphereLight args={['#3a2840', '#0a0606', 0.22]} />
+      {/* Night cave atmosphere — keep it dark, but give the air a faint cool
+          tint so the warm lantern glow reads against a cold periphery. Mirrors
+          Piper's NIGHT preset, dialed down ~30% since this game lives in a
+          cave rather than an open pasture. */}
+      <fog attach="fog" args={['#080c14', 6, 22]} />
+      <ambientLight intensity={0.20} color="#1a2436" />
+      <hemisphereLight args={['#2a3450', '#080a12', 0.18]} />
+      <Fireflies />
       {/* Floor: dark damp stone */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[ARENA_HALF * 4, ARENA_HALF * 4]} />
-        <meshStandardMaterial color="#1a1410" roughness={1.0} />
+        <meshStandardMaterial color="#241c14" roughness={0.85} />
       </mesh>
       {/* Cave walls (outer ring) — taller dark cylinders around perimeter */}
       <mesh position={[0, 1.5, -ARENA_HALF - 0.5]} castShadow>

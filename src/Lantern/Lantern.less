@@ -199,90 +199,45 @@
     -webkit-backdrop-filter: blur(8px);
   }
 
-  // ===== Seal-hit feedback =====
-  &__chain-break {
+  // Pickup +N pellets — drift up + fade. Container anchors at screen center
+  // because the camera follows the player.
+  &__pellets {
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    pointer-events: none;
+    z-index: 12;
+  }
+  &__pellet {
+    position: absolute;
+    font-family: 'Baloo 2', 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 28px;
+    pointer-events: none;
+    text-shadow: 0 2px 12px rgba(0,0,0,.75);
+    animation: ln-pellet-up 800ms cubic-bezier(.22,.61,.36,1) forwards;
+    color: #ffd64a;
+    &--gold  { color: #ffd64a; }
+    &--red   { color: #ff8c5a; }
+    &--green { color: #6cff9e; }
+    &--blue  { color: #6fc6ff; }
+  }
+  &__hit-flash {
     position: absolute;
     inset: 0;
     z-index: 15;
     pointer-events: none;
-    font-family: 'Baloo 2', sans-serif;
-  }
-  // Full-screen red flash that pulses once
-  &__chain-break-flash {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(60% 60% at 50% 50%, rgba(255, 80, 50, .35) 0%, rgba(255, 80, 50, 0) 75%);
-    animation: ln-chain-break-flash .5s ease-out forwards;
-  }
-  // Floating "-N" red pellet above the score HUD, rises and fades.
-  &__chain-break-pellet {
-    position: absolute;
-    top: 88px;
-    left: 22px;
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    color: #ff5b3a;
-    font-weight: 800;
-    text-shadow: 0 4px 18px rgba(255, 80, 50, .65);
-    animation: ln-chain-break-pellet 1.4s cubic-bezier(.22,.61,.36,1) forwards;
-  }
-  &__chain-break-minus {
-    font-size: 36px;
-    line-height: 1;
-    letter-spacing: -.04em;
-  }
-  &__chain-break-count {
-    font-size: 56px;
-    line-height: 1;
-    letter-spacing: -.02em;
-  }
-  // Centered banner for stronger emphasis
-  &__chain-break-label {
-    position: absolute;
-    top: 42%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #ff7a55;
-    font-weight: 800;
-    font-size: 32px;
-    letter-spacing: .12em;
-    text-shadow:
-      0 4px 0  rgba(255, 80, 50, .10),
-      0 8px 28px rgba(255, 80, 50, .55);
-    animation: ln-chain-break-label 1.2s ease-out forwards;
-  }
-
-  &__pellet {
-    position: absolute;
-    color: #ffe17a;
-    font-weight: 800;
-    font-size: 22px;
-    pointer-events: none;
-    text-shadow: 0 2px 8px rgba(0,0,0,.6);
-    animation: ln-pellet-up 700ms ease-out forwards;
+    background: radial-gradient(70% 70% at 50% 50%, rgba(255, 50, 40, .45) 0%, rgba(180, 20, 10, .25) 35%, rgba(40, 0, 0, 0) 80%);
+    animation: ln-hit-flash .6s ease-out forwards;
   }
 }
 
 @keyframes ln-pellet-up {
-  0%   { opacity: 0; transform: translate(-50%, 0)   scale(.7); }
-  20%  { opacity: 1; transform: translate(-50%, -8px) scale(1.1); }
-  100% { opacity: 0; transform: translate(-50%, -60px) scale(.9); }
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(.7); }
+  20%  { opacity: 1; transform: translate(-50%, -8px) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -76px) scale(.9); }
 }
-
-@keyframes ln-chain-break-flash {
+@keyframes ln-hit-flash {
   0%   { opacity: 1; }
   100% { opacity: 0; }
-}
-@keyframes ln-chain-break-pellet {
-  0%   { opacity: 0; transform: translate(0, 10px) scale(.7); }
-  15%  { opacity: 1; transform: translate(0, -4px) scale(1.18); }
-  35%  { opacity: 1; transform: translate(0, -14px) scale(1.0); }
-  100% { opacity: 0; transform: translate(0, -90px) scale(.85); }
-}
-@keyframes ln-chain-break-label {
-  0%   { opacity: 0; transform: translate(-50%, -30%) scale(.85); }
-  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
-  35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(.95); }
 }

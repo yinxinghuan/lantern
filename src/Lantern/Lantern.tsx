@@ -4,9 +4,9 @@ import { Leaderboard, useGameScore } from '@shared/leaderboard';
 import { Scene } from './components/Scene';
 import { SplashScene } from './components/SplashScene';
 import { createGameState } from './hooks/useGameLoop';
-import type { SfxKey } from './hooks/useGameLoop';
+import type { PickupKind, SfxKey } from './hooks/useGameLoop';
 import { useJoystick } from './hooks/useJoystick';
-import { playSfx, startBgm, stopBgm, unlockAudio } from './utils/audio';
+import { playSfx, setHeartbeatRate, startBgm, stopBgm, stopHeartbeat, unlockAudio } from './utils/audio';
 import { t } from './i18n';
 import alteruSvg from './img/alteru.svg';
 import './Lantern.less';
@@ -16,6 +16,10 @@ type Phase = 'splash' | 'playing' | 'gameover';
 
 const HIGH_KEY = 'lantern_high';
 
+interface Pellet { id: number; kind: PickupKind; value: number; dx: number; dy: number; }
+
+let pelletIdCounter = 1;
+
 export function Lantern() {
   const [phase, setPhase] = useState<Phase>('splash');
   const [score, setScore] = useState(0);
@@ -24,6 +28,8 @@ export function Lantern() {
   const [highScore, setHighScore] = useState<number>(() => Number(localStorage.getItem(HIGH_KEY) || 0));
   const [finalScore, setFinalScore] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [pellets, setPellets] = useState<Pellet[]>([]);
+  const [hitFlashKey, setHitFlashKey] = useState(0);
 
   const stateRef = useRef(createGameState());
   const { stickRef, view } = useJoystick(phase === 'playing');
@@ -40,6 +46,21 @@ export function Lantern() {
   const onScore = useCallback((s: number) => setScore(s), []);
   const onDepth = useCallback((d: number) => setDepth(d), []);
   const onLightRadius = useCallback((r: number) => setLightRadius(r), []);
+
+  // Floating "+N" pellet feedback. Camera follows the player so pickups
+  // always happen near screen-center — render pellets there with a small
+  // random offset to avoid stacking on rapid pickups.
+  const onPickup = useCallback((kind: PickupKind, value: number) => {
+    const id = pelletIdCounter++;
+    const dx = (Math.random() - 0.5) * 60;
+    const dy = (Math.random() - 0.5) * 30;
+    setPellets(prev => [...prev, { id, kind, value, dx, dy }]);
+    window.setTimeout(() => setPellets(prev => prev.filter(p => p.id !== id)), 800);
+  }, []);
+
+  const onStrikeHit = useCallback(() => {
+    setHitFlashKey(k => k + 1);
+  }, []);
 
   const onGameOver = useCallback((final: number) => {
     setFinalScore(final);
@@ -58,11 +79,37 @@ export function Lantern() {
     setScore(0);
     setDepth(0);
     setLightRadius(3);
+    setPellets([]);
     setPhase('playing');
-    startBgm(0.05);
+    startBgm(0.18);
   }, []);
 
-  useEffect(() => () => { stopBgm(); }, []);
+  useEffect(() => () => { stopBgm(); stopHeartbeat(); }, []);
+
+  // Drive heartbeat tempo from monster proximity. Polls 4× per second —
+  // cheap, doesn't need frame-perfect sync because the audible change is
+  // a slowly-ramping BPM.
+  useEffect(() => {
+    if (phase !== 'playing') {
+      stopHeartbeat();
+      return;
+    }
+    const id = window.setInterval(() => {
+      const d = stateRef.current;
+      // Nearest monster distance maps to BPM. Below ~14u: silent (no
+      // threat). Right at the light-cone edge (~r): full panic (~150 bpm).
+      const r = d.lightRadius;
+      const dist = d.nearestMonsterDist;
+      if (dist > 14) {
+        setHeartbeatRate(0);
+        return;
+      }
+      const t = Math.max(0, Math.min(1, (14 - dist) / (14 - r * 0.8)));
+      const bpm = 55 + t * 95;
+      setHeartbeatRate(bpm);
+    }, 250);
+    return () => { window.clearInterval(id); stopHeartbeat(); };
+  }, [phase]);
 
   const showCanvas = phase !== 'splash';
   const canvasFrameloop = phase === 'playing' ? 'always' : 'demand';
@@ -80,6 +127,8 @@ export function Lantern() {
               onDepth={onDepth}
               onLightRadius={onLightRadius}
               onGameOver={onGameOver}
+              onPickup={onPickup}
+              onStrikeHit={onStrikeHit}
               playSfx={(k: SfxKey) => playSfx(k as never)}
               haptic={haptic}
             />
@@ -115,6 +164,25 @@ export function Lantern() {
         </div>
       )}
       {showCanvas && <img className="ln__watermark" src={alteruSvg} alt="AlterU" />}
+
+      {/* Floating "+N" pickup pellets — anchored near screen center because
+          the follow camera keeps the player there. Color per crystal type. */}
+      {phase === 'playing' && pellets.length > 0 && (
+        <div className="ln__pellets">
+          {pellets.map(p => (
+            <div
+              key={p.id}
+              className={`ln__pellet ln__pellet--${p.kind}`}
+              style={{ left: `${p.dx}px`, top: `${p.dy}px` }}
+            >
+              +{p.value}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Red strike flash — one-shot full-screen pulse when a dark hand grabs */}
+      {hitFlashKey > 0 && <div key={hitFlashKey} className="ln__hit-flash" />}
 
       {view.active && (
         <div className="ln__joystick" style={{ left: view.ox, top: view.oy }}>

@@ -126,6 +126,8 @@ function spawnPillar(): Pillar {
   };
 }
 
+export type PickupKind = 'gold' | 'red' | 'green' | 'blue';
+
 export interface GameLoopParams {
   state: React.MutableRefObject<GameRef>;
   playing: boolean;
@@ -134,6 +136,8 @@ export interface GameLoopParams {
   onDepth: (d: number) => void;
   onLightRadius: (r: number) => void;
   onGameOver: (final: number) => void;
+  onPickup?: (kind: PickupKind, value: number) => void;
+  onStrikeHit?: () => void;
   playSfx: (k: SfxKey) => void;
   haptic?: (k: 'light' | 'heavy') => void;
 }
@@ -291,6 +295,7 @@ export function useGameLoop(p: GameLoopParams) {
           p.playSfx('strike_hit');
           p.playSfx('game_over');
           p.haptic?.('heavy');
+          p.onStrikeHit?.();
           d.gameOver = true;
           setTimeout(() => p.onGameOver(Math.floor(d.score)), 600);
           return;
@@ -320,6 +325,7 @@ export function useGameLoop(p: GameLoopParams) {
             d.score += SCORE_RED;
             p.playSfx('pickup_red');
             emitFx(d, 'pickup_red', cr.position.x, cr.position.z);
+            p.onPickup?.('red', SCORE_RED);
             break;
           case 'green':
             d.greenCount++;
@@ -327,19 +333,23 @@ export function useGameLoop(p: GameLoopParams) {
             d.score += SCORE_GREEN;
             p.playSfx('pickup_green');
             emitFx(d, 'pickup_green', cr.position.x, cr.position.z);
+            p.onPickup?.('green', SCORE_GREEN);
             break;
           case 'blue':
             d.blueCount++;
             d.score += SCORE_BLUE;
             d.walls.push({ id: nextId(), position: cr.position.clone(), bornAt: d.time });
             p.playSfx('pickup_blue');
+            p.playSfx('wall_pulse');
             emitFx(d, 'pickup_blue', cr.position.x, cr.position.z);
+            p.onPickup?.('blue', SCORE_BLUE);
             break;
           case 'gold':
             d.goldCount++;
             d.score += SCORE_GOLD;
             p.playSfx('pickup_gold');
             emitFx(d, 'pickup_gold', cr.position.x, cr.position.z);
+            p.onPickup?.('gold', SCORE_GOLD);
             break;
         }
         p.haptic?.('light');
