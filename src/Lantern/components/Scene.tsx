@@ -126,6 +126,13 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         distance={32}
         decay={0.70}
         color="#ffd189"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-bias={-0.0008}
+        shadow-normalBias={0.04}
+        shadow-camera-near={0.4}
+        shadow-camera-far={32}
       />
       <object3D ref={targetRef} position={[0, -1.0, 4]} />
       {/* Local PointLight at the lantern — short-range warm bounce so the
