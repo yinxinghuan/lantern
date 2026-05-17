@@ -106,31 +106,35 @@
   }
 
   &__title {
-    margin: 0 0 18px;
-    font-family: 'Baloo 2', 'Space Grotesk', system-ui, sans-serif;
-    font-size: clamp(76px, 22vw, 124px);
-    font-weight: 800;
-    letter-spacing: -.01em;
-    line-height: .95;
+    // Roman-inscribed caps for a "found this old lantern in the ruins"
+    // adventure-game feel. Cinzel 900 + wide letter-spacing reads as
+    // chiseled stone rather than the previous rounded Baloo.
+    margin: 0 0 22px;
+    font-family: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
+    font-size: clamp(54px, 15.5vw, 90px);
+    font-weight: 900;
+    letter-spacing: .08em;
+    line-height: 1;
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    flex-direction: row;
+    align-items: baseline;
+    gap: .02em;
     text-shadow:
-      0 4px 0  rgba(255,255,255,.04),
-      0 8px 32px rgba(255, 150, 60, .55),
-      0 0 90px  rgba(255, 180, 90, .28);
+      0 4px 0  rgba(0, 0, 0, .55),
+      0 10px 36px rgba(255, 150, 60, .60),
+      0 0 100px rgba(255, 180, 90, .30);
   }
   &__title-emph {
-    background: linear-gradient(180deg, #fff2d6 0%, #ffd28a 70%, #cd8e54 100%);
+    background: linear-gradient(180deg, #fff2d6 0%, #ffd28a 65%, #cd8e54 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     &--accent {
-      background: linear-gradient(180deg, #ffe17a 0%, #ff9844 100%);
+      background: linear-gradient(180deg, #ffe17a 0%, #ff9844 60%, #ff6b3a 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
-      filter: drop-shadow(0 4px 14px rgba(255, 170, 60, .5));
+      filter: drop-shadow(0 4px 14px rgba(255, 170, 60, .55));
     }
   }
   &__subtitle {

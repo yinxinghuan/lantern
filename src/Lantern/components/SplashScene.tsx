@@ -117,8 +117,8 @@ export function SplashScene({ onStart, highScore }: { onStart: () => void; highS
       {/* Foreground content */}
       <div className="ln-splash__content">
         <h1 className="ln-splash__title">
-          <span className="ln-splash__title-emph">Lan</span>
-          <span className="ln-splash__title-emph ln-splash__title-emph--accent">tern</span>
+          <span className="ln-splash__title-emph">LAN</span>
+          <span className="ln-splash__title-emph ln-splash__title-emph--accent">TERN</span>
         </h1>
         <p className="ln-splash__subtitle">{t('subtitle')}</p>
 
