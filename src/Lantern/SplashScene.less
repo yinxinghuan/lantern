@@ -106,9 +106,10 @@
   }
 
   &__title {
-    // Roman-inscribed caps for a "found this old lantern in the ruins"
-    // adventure-game feel. Cinzel 900 + wide letter-spacing reads as
-    // chiseled stone rather than the previous rounded Baloo.
+    // Cinzel Roman caps. Color shifted from warm amber (which clashed with
+    // the warm lantern glow below) to cold bone-silver — like moonlight on
+    // a stone monument. The contrast against the warm lantern reads as
+    // "you have one flame in a cold dead place" — the game's whole pitch.
     margin: 0 0 22px;
     font-family: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
     font-size: clamp(54px, 15.5vw, 90px);
@@ -120,21 +121,23 @@
     align-items: baseline;
     gap: .02em;
     text-shadow:
-      0 4px 0  rgba(0, 0, 0, .55),
-      0 10px 36px rgba(255, 150, 60, .60),
-      0 0 100px rgba(255, 180, 90, .30);
+      0 4px 0  rgba(0, 0, 0, .60),
+      0 10px 38px rgba(180, 210, 240, .35),
+      0 0 100px rgba(140, 180, 220, .25);
   }
   &__title-emph {
-    background: linear-gradient(180deg, #fff2d6 0%, #ffd28a 65%, #cd8e54 100%);
+    background: linear-gradient(180deg, #f4f6fa 0%, #c7d3e2 60%, #6b7a90 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     &--accent {
-      background: linear-gradient(180deg, #ffe17a 0%, #ff9844 60%, #ff6b3a 100%);
+      // Accent half stays cool but gets a hint of warm at the bottom edge,
+      // suggesting the lantern's light just brushing the stone from below.
+      background: linear-gradient(180deg, #fafcff 0%, #d6e1f0 50%, #c8a07a 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
-      filter: drop-shadow(0 4px 14px rgba(255, 170, 60, .55));
+      filter: drop-shadow(0 4px 14px rgba(170, 200, 240, .35));
     }
   }
   &__subtitle {

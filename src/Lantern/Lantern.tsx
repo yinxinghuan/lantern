@@ -73,15 +73,19 @@ export function Lantern() {
     submitScore(final).catch(() => { /* silent */ });
   }, [highScore, submitScore]);
 
-  const start = useCallback(async () => {
-    await unlockAudio();
+  const start = useCallback(() => {
+    // CRITICAL: set the playing phase synchronously BEFORE touching audio.
+    // Previously we awaited unlockAudio() first, which on some mobile
+    // browsers (iOS Safari especially) never resolves if the AudioContext
+    // is in a weird state — the await would hang and the game never started.
     stateRef.current = createGameState();
     setScore(0);
     setDepth(0);
     setLightRadius(3);
     setPellets([]);
     setPhase('playing');
-    startBgm(0.18);
+    // Fire-and-forget audio init. If it fails or hangs, gameplay still works.
+    unlockAudio().then(() => startBgm(0.18)).catch(() => { /* silent */ });
   }, []);
 
   useEffect(() => () => { stopBgm(); stopHeartbeat(); }, []);
