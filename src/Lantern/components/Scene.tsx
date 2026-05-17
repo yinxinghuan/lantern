@@ -51,21 +51,25 @@ function FollowCamera({ state }: { state: React.MutableRefObject<GameRef> }) {
 function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
   const lanternMat = useRef<THREE.MeshStandardMaterial>(null);
+  const coneMat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(({ clock }) => {
     const d = state.current;
     if (!groupRef.current) return;
     groupRef.current.position.copy(d.pos);
     groupRef.current.rotation.y = d.rot;
     if (lanternMat.current) {
-      lanternMat.current.emissiveIntensity = 2.0 + Math.sin(clock.getElapsedTime() * 4) * 0.25;
+      lanternMat.current.emissiveIntensity = 3.2 + Math.sin(clock.getElapsedTime() * 4) * 0.4;
     }
+    // Slight breathing on the volumetric cone so the beam feels alive
+    const breathe = 1 + Math.sin(clock.getElapsedTime() * 2.4) * 0.05;
+    if (coneMat.current) coneMat.current.opacity = 0.18 * breathe;
   });
   return (
     <group ref={groupRef}>
-      {/* foot shadow */}
+      {/* tiny contact shadow — kept faint so it blends into the lit floor */}
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.6, 24]} />
-        <meshBasicMaterial color="#000" transparent opacity={0.55} />
+        <circleGeometry args={[0.5, 24]} />
+        <meshBasicMaterial color="#000" transparent opacity={0.25} />
       </mesh>
       {/* lower body */}
       <RoundedBox args={[0.55, 0.55, 0.45]} radius={0.16} smoothness={5} position={[0, 0.35, 0]} castShadow>
@@ -85,32 +89,70 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         <coneGeometry args={[0.26, 0.30, 18]} />
         <meshStandardMaterial color="#2a1a12" roughness={0.9} />
       </mesh>
-      {/* lantern stick + lantern (in front of body, in +Z) */}
+      {/* lantern stick + lantern body */}
       <mesh position={[0.30, 1.05, 0.30]} rotation={[0.6, 0, -0.4]}>
         <cylinderGeometry args={[0.025, 0.025, 0.7, 8]} />
         <meshStandardMaterial color="#2a1a10" />
       </mesh>
-      {/* lantern body — emissive lamp glass */}
       <mesh position={[0.46, 0.85, 0.50]}>
         <boxGeometry args={[0.22, 0.30, 0.22]} />
         <meshStandardMaterial color="#1a1410" />
       </mesh>
       <mesh position={[0.46, 0.85, 0.50]}>
         <sphereGeometry args={[0.13, 14, 10]} />
-        <meshStandardMaterial ref={lanternMat} color="#ffe9a0" emissive="#ffd24a" emissiveIntensity={2.0} />
+        <meshStandardMaterial ref={lanternMat} color="#ffe9a0" emissive="#ffd24a" emissiveIntensity={3.2} />
       </mesh>
-      {/* real SpotLight following the lantern, broad cone aimed forward+down */}
+
+      {/* Real SpotLight — broad, bright cone that carves a bright wedge of
+          cave floor in front. */}
       <spotLight
-        position={[0.46, 1.0, 0.50]}
-        angle={Math.PI / 3.2}
-        penumbra={0.7}
-        intensity={32}
-        distance={14}
-        decay={1.1}
+        position={[0, 1.05, 0.40]}
+        angle={Math.PI / 3.0}
+        penumbra={0.5}
+        intensity={180}
+        distance={24}
+        decay={0.85}
         color="#fff2c0"
+        castShadow
       >
         <object3D attach="target" position={[0, -1.0, 4]} />
       </spotLight>
+      {/* Local PointLight at the lantern — short-range warm bounce so the
+          player's body, hat and feet are visible from the camera above,
+          not just a featureless silhouette. */}
+      <pointLight position={[0, 1.0, 0.5]} color="#ffcc70" intensity={2.4} distance={3.5} decay={1.0} />
+
+      {/* VOLUMETRIC BEAM CONE — two layers (halo + core) so the beam reads
+          like an actual flashlight rather than a faint triangle. Position +
+          rotation derived so apex anchors at the lantern (~y=1.0, z=0.5)
+          and base lands flat on the floor 3.7u forward.
+            mesh.position.y = 1.0 - 1.675·cos(72.5°) = 0.50
+            mesh.position.z = 0.5 + 1.675·sin(72.5°) = 2.10 */}
+      <mesh position={[0, 0.50, 2.10]} rotation={[-Math.PI * 0.403, 0, 0]}>
+        <coneGeometry args={[1.6, 3.35, 28, 1, true]} />
+        <meshBasicMaterial
+          ref={coneMat}
+          color="#fff2c0"
+          transparent
+          opacity={0.32}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      {/* Brighter inner core — thinner cone, hotter color */}
+      <mesh position={[0, 0.50, 2.10]} rotation={[-Math.PI * 0.403, 0, 0]}>
+        <coneGeometry args={[0.9, 3.35, 24, 1, true]} />
+        <meshBasicMaterial
+          color="#fff5d8"
+          transparent
+          opacity={0.34}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+
       {/* feet — short cylinders */}
       <mesh position={[-0.14, 0.10, 0]} castShadow>
         <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
@@ -121,34 +163,6 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         <meshStandardMaterial color="#1a0e08" />
       </mesh>
     </group>
-  );
-}
-
-// Player light puddle on the floor — soft warm disc whose radius matches the
-// game's current `lightRadius`. Read straight from state each frame.
-function LightPuddle({ state }: { state: React.MutableRefObject<GameRef> }) {
-  const innerRef = useRef<THREE.Mesh>(null);
-  const outerRef = useRef<THREE.Mesh>(null);
-  useFrame(() => {
-    const d = state.current;
-    if (!innerRef.current || !outerRef.current) return;
-    const r = (d.greenT > 0 ? d.lightRadius * 2 : d.lightRadius);
-    innerRef.current.position.set(d.pos.x, 0.03, d.pos.z);
-    innerRef.current.scale.set(r * 0.7, 1, r * 0.7);
-    outerRef.current.position.set(d.pos.x, 0.02, d.pos.z);
-    outerRef.current.scale.set(r, 1, r);
-  });
-  return (
-    <>
-      <mesh ref={outerRef} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.5, 1.0, 48]} />
-        <meshBasicMaterial color="#ffd87a" transparent opacity={0.20} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </mesh>
-      <mesh ref={innerRef} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[1.0, 32]} />
-        <meshBasicMaterial color="#fff2c0" transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </mesh>
-    </>
   );
 }
 
@@ -404,8 +418,8 @@ export function Scene(props: SceneProps) {
       <FollowCamera state={state} />
       {/* Cave ambient — very dark with a tiny up-fill so silhouettes are barely visible outside the lantern */}
       <fog attach="fog" args={['#040308', 6, 22]} />
-      <ambientLight intensity={0.08} color="#1a1428" />
-      <hemisphereLight args={['#3a2840', '#0a0606', 0.15]} />
+      <ambientLight intensity={0.28} color="#2a1e36" />
+      <hemisphereLight args={['#3a2840', '#0a0606', 0.22]} />
       {/* Floor: dark damp stone */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[ARENA_HALF * 4, ARENA_HALF * 4]} />
@@ -433,7 +447,6 @@ export function Scene(props: SceneProps) {
       <Crystals state={state} />
       <Walls state={state} />
       <Player state={state} />
-      <LightPuddle state={state} />
       <Monsters state={state} />
     </>
   );

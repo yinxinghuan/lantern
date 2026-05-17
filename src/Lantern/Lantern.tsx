@@ -90,7 +90,7 @@ export function Lantern() {
           <div
             className="ln__fog"
             style={{
-              background: `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${Math.max(8, lightRadius * 5)}%, rgba(0,0,0,0.55) ${Math.max(18, lightRadius * 9)}%, rgba(0,0,0,0.95) 65%)`,
+              background: `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${Math.max(14, lightRadius * 8)}%, rgba(0,0,0,0.20) ${Math.max(30, lightRadius * 14)}%, rgba(0,0,0,0.55) 80%)`,
             }}
           />
         </div>
