@@ -52,15 +52,30 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
   const lanternMat = useRef<THREE.MeshStandardMaterial>(null);
   const coneMat = useRef<THREE.MeshBasicMaterial>(null);
+  // SpotLight + its target are wired explicitly via refs each frame because
+  // three.js doesn't auto-update a target's matrixWorld when the target is
+  // only attached as a `target` property (vs being a real scene-graph child).
+  // Without this, the light direction was locked at game start regardless
+  // of which way the player turned.
+  const spotRef = useRef<THREE.SpotLight>(null);
+  const targetRef = useRef<THREE.Object3D>(null);
   useFrame(({ clock }) => {
     const d = state.current;
     if (!groupRef.current) return;
     groupRef.current.position.copy(d.pos);
     groupRef.current.rotation.y = d.rot;
+    if (spotRef.current && targetRef.current) {
+      // Re-bind target every frame so r3f re-attach doesn't drop it; force
+      // target world matrix to update so the spotLight direction follows
+      // the parent group's current rotation.
+      if (spotRef.current.target !== targetRef.current) {
+        spotRef.current.target = targetRef.current;
+      }
+      targetRef.current.updateMatrixWorld(true);
+    }
     if (lanternMat.current) {
       lanternMat.current.emissiveIntensity = 3.2 + Math.sin(clock.getElapsedTime() * 4) * 0.4;
     }
-    // Slight breathing on the volumetric cone so the beam feels alive
     const breathe = 1 + Math.sin(clock.getElapsedTime() * 2.4) * 0.05;
     if (coneMat.current) coneMat.current.opacity = 0.18 * breathe;
   });
@@ -104,8 +119,11 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
       </mesh>
 
       {/* Real SpotLight — broad, bright cone that carves a bright wedge of
-          cave floor in front. */}
+          cave floor in front. Target is rendered as a sibling Object3D so
+          its matrixWorld updates with the parent group rotation; the
+          useFrame above re-binds spotLight.target each tick. */}
       <spotLight
+        ref={spotRef}
         position={[0, 1.05, 0.40]}
         angle={Math.PI / 3.0}
         penumbra={0.5}
@@ -114,9 +132,8 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         decay={0.85}
         color="#fff2c0"
         castShadow
-      >
-        <object3D attach="target" position={[0, -1.0, 4]} />
-      </spotLight>
+      />
+      <object3D ref={targetRef} position={[0, -1.0, 4]} />
       {/* Local PointLight at the lantern — short-range warm bounce so the
           player's body, hat and feet are visible from the camera above,
           not just a featureless silhouette. */}
