@@ -50,29 +50,34 @@ function FollowCamera({ state }: { state: React.MutableRefObject<GameRef> }) {
 // Player explorer + lantern. Two pieces: a chunky humanoid body and a
 // glowing lantern hanging in front. The lantern carries the real SpotLight
 // that illuminates the floor + nearby crystals + monsters.
+// Base values for the lantern's omnidirectional glow. The "breath" function
+// in useFrame modulates both intensity and distance around these.
+const LANTERN_BASE_INTENSITY = 45;      // PointLight intensity units (decay=2)
+const LANTERN_BASE_DISTANCE  = 22;      // world units of reach
+
 function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
   const lanternMat = useRef<THREE.MeshStandardMaterial>(null);
-  // SpotLight + its target are wired explicitly via refs each frame because
-  // three.js doesn't auto-update a target's matrixWorld when the target is
-  // only attached as a `target` property (vs being a real scene-graph child).
-  // Without this, the light direction was locked at game start regardless
-  // of which way the player turned.
-  const spotRef = useRef<THREE.SpotLight>(null);
-  const targetRef = useRef<THREE.Object3D>(null);
+  const lanternLightRef = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     const d = state.current;
     if (!groupRef.current) return;
     groupRef.current.position.copy(d.pos);
     groupRef.current.rotation.y = d.rot;
-    if (spotRef.current && targetRef.current) {
-      if (spotRef.current.target !== targetRef.current) {
-        spotRef.current.target = targetRef.current;
-      }
-      targetRef.current.updateMatrixWorld(true);
+    const t = clock.getElapsedTime();
+    // Two-band flicker:
+    //   • slow sinusoid (~5.5s period) → the lantern's "breath"
+    //   • fast jitter   (~7Hz)         → flame restlessness
+    // Combined to give a value in roughly [0.78, 1.22].
+    const slow = Math.sin(t * 1.14) * 0.18;
+    const fast = (Math.sin(t * 7.0) + Math.sin(t * 11.3) * 0.4) * 0.06;
+    const breath = 1.0 + slow + fast;
+    if (lanternLightRef.current) {
+      lanternLightRef.current.intensity = LANTERN_BASE_INTENSITY * breath;
+      lanternLightRef.current.distance  = LANTERN_BASE_DISTANCE  * (0.94 + slow * 0.55);
     }
     if (lanternMat.current) {
-      lanternMat.current.emissiveIntensity = 3.2 + Math.sin(clock.getElapsedTime() * 4) * 0.4;
+      lanternMat.current.emissiveIntensity = 3.2 * breath;
     }
   });
   return (
@@ -111,60 +116,29 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
       </mesh>
       <mesh position={[0.46, 0.85, 0.50]}>
         <sphereGeometry args={[0.13, 14, 10]} />
-        <meshStandardMaterial ref={lanternMat} color="#ffe9a0" emissive="#ffd24a" emissiveIntensity={3.2} />
+        <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
       </mesh>
 
-      {/* Real SpotLight — the lantern's actual scene-illuminating cone.
-          Strengthened (intensity 260) since the decorative volumetric beam
-          was removed; this is now the sole source of forward floor light. */}
-      <spotLight
-        ref={spotRef}
-        position={[0, 1.05, 0.40]}
-        angle={Math.PI / 3.0}
-        penumbra={0.5}
-        intensity={600}
-        distance={32}
-        decay={0.70}
-        color="#ffd189"
+      {/* The lantern — a single omnidirectional warm orange PointLight at
+          the hanging-bulb position. Intensity + distance "breathe" in
+          useFrame (slow sin + small fast jitter) for the candle-flame
+          flicker the lantern needs. castShadow so the player still throws
+          a shadow on the cave floor. */}
+      <pointLight
+        ref={lanternLightRef}
+        position={[0.46, 0.85, 0.50]}
+        color="#ff9a3a"
+        intensity={LANTERN_BASE_INTENSITY}
+        distance={LANTERN_BASE_DISTANCE}
+        decay={2}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
         shadow-bias={-0.0008}
         shadow-normalBias={0.04}
-        shadow-camera-near={0.4}
-        shadow-camera-far={32}
+        shadow-camera-near={0.3}
+        shadow-camera-far={20}
       />
-      <object3D ref={targetRef} position={[0, -1.0, 4]} />
-      {/* Local PointLight at the lantern — short-range warm bounce so the
-          player's body, hat and feet are visible from the camera above,
-          not just a featureless silhouette. */}
-      <pointLight position={[0, 1.0, 0.5]} color="#ffb060" intensity={2.4} distance={3.5} decay={1.0} />
-
-      {/* Volumetric beam cone — softer than before so it complements the
-          (now strong + warm) hard SpotLight without overpowering it. Two
-          layers: halo + thinner core. Apex anchored at the lantern. */}
-      <mesh position={[0, 0.50, 2.10]} rotation={[-Math.PI * 0.403, 0, 0]}>
-        <coneGeometry args={[1.6, 3.35, 28, 1, true]} />
-        <meshBasicMaterial
-          color="#ffd28a"
-          transparent
-          opacity={0.16}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-      <mesh position={[0, 0.50, 2.10]} rotation={[-Math.PI * 0.403, 0, 0]}>
-        <coneGeometry args={[0.9, 3.35, 24, 1, true]} />
-        <meshBasicMaterial
-          color="#ffe1a8"
-          transparent
-          opacity={0.18}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
 
       {/* feet — short cylinders */}
       <mesh position={[-0.14, 0.10, 0]} castShadow>
