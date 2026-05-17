@@ -1,0 +1,288 @@
+.ln {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(120% 80% at 50% 100%, #1a1018 0%, #0a0508 50%, #02010a 100%);
+  overflow: hidden;
+  color: #f4f4f4;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  touch-action: none;
+
+  &__canvas { position: absolute; inset: 0; }
+
+  &__fog {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    mix-blend-mode: multiply;
+    transition: background 80ms linear;
+  }
+  &__hud {
+    position: absolute;
+    top: env(safe-area-inset-top, 8px);
+    left: 0;
+    right: 0;
+    padding: 8px 16px;
+    z-index: 10;
+    pointer-events: none;
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  }
+  &__topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 18px 9px;
+    background: linear-gradient(135deg, rgba(28,18,28,.55), rgba(12,8,18,.55));
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 8px 28px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+    border-radius: 18px;
+    pointer-events: auto;
+  }
+  &__topbar-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    &--right { align-items: flex-end; }
+  }
+  &__topbar-mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  &__topbar-num {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff5dd;
+    text-shadow: 0 0 14px rgba(255,180,80,.25);
+    &--small { font-size: 18px; }
+  }
+  &__topbar-caption {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: rgba(220, 200, 170, .55);
+    font-weight: 500;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  &__watermark {
+    position: absolute;
+    left: 16px;
+    bottom: calc(env(safe-area-inset-bottom, 16px) + 16px);
+    height: 28px;
+    width: auto;
+    opacity: .65;
+    pointer-events: auto;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,.45));
+    z-index: 5;
+  }
+
+  &__joystick {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+    transform: translate(-50%, -50%);
+    &__ring {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,255,255,.55);
+      background: rgba(0,0,0,.18);
+      backdrop-filter: blur(3px);
+      position: relative;
+    }
+    &__stick {
+      position: absolute;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.75);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transition: transform 60ms linear;
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+  }
+
+  &__gameover {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    z-index: 20;
+    background: radial-gradient(80% 80% at 50% 30%, rgba(40, 90, 140, .55) 0%, rgba(5,12,25,.92) 80%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  }
+  &__gameover-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(255, 110, 110, .85);
+    font-weight: 600;
+    letter-spacing: .35em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  &__cta {
+    background: linear-gradient(135deg, #ffe17a 0%, #ff9844 60%, #ff6b3a 100%);
+    color: #1a1a1a;
+    border: none;
+    padding: 16px 38px;
+    border-radius: 999px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow:
+      0 16px 40px rgba(255, 150, 60, .42),
+      inset 0 1px 0 rgba(255, 255, 255, .6);
+    pointer-events: auto;
+    transition: transform .15s ease;
+  }
+  &__cta:active { transform: translateY(2px); }
+  &__final-score {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 128px;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.1;
+    letter-spacing: -.01em;
+    // Internal padding gives the filter drop-shadow + Baloo 2 glyph ink
+    // (which extends past the advance width on chars like "2") room to render
+    // without being clipped by the flex-shrunk box.
+    padding: 0 .12em;
+    max-width: 100%;
+    background: linear-gradient(180deg, #ffe17a 0%, #ff9844 70%, #ff6b3a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 14px 30px rgba(255, 150, 60, .3));
+  }
+  &__final {
+    margin: 14px 0 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: rgba(220, 235, 250, .7);
+  }
+  &__leaderboard-btn {
+    margin-top: 16px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.18);
+    color: #fff;
+    padding: 12px 26px;
+    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  // ===== Seal-hit feedback =====
+  &__chain-break {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    pointer-events: none;
+    font-family: 'Baloo 2', sans-serif;
+  }
+  // Full-screen red flash that pulses once
+  &__chain-break-flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(60% 60% at 50% 50%, rgba(255, 80, 50, .35) 0%, rgba(255, 80, 50, 0) 75%);
+    animation: ln-chain-break-flash .5s ease-out forwards;
+  }
+  // Floating "-N" red pellet above the score HUD, rises and fades.
+  &__chain-break-pellet {
+    position: absolute;
+    top: 88px;
+    left: 22px;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    color: #ff5b3a;
+    font-weight: 800;
+    text-shadow: 0 4px 18px rgba(255, 80, 50, .65);
+    animation: ln-chain-break-pellet 1.4s cubic-bezier(.22,.61,.36,1) forwards;
+  }
+  &__chain-break-minus {
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: -.04em;
+  }
+  &__chain-break-count {
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -.02em;
+  }
+  // Centered banner for stronger emphasis
+  &__chain-break-label {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ff7a55;
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: .12em;
+    text-shadow:
+      0 4px 0  rgba(255, 80, 50, .10),
+      0 8px 28px rgba(255, 80, 50, .55);
+    animation: ln-chain-break-label 1.2s ease-out forwards;
+  }
+
+  &__pellet {
+    position: absolute;
+    color: #ffe17a;
+    font-weight: 800;
+    font-size: 22px;
+    pointer-events: none;
+    text-shadow: 0 2px 8px rgba(0,0,0,.6);
+    animation: ln-pellet-up 700ms ease-out forwards;
+  }
+}
+
+@keyframes ln-pellet-up {
+  0%   { opacity: 0; transform: translate(-50%, 0)   scale(.7); }
+  20%  { opacity: 1; transform: translate(-50%, -8px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -60px) scale(.9); }
+}
+
+@keyframes ln-chain-break-flash {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes ln-chain-break-pellet {
+  0%   { opacity: 0; transform: translate(0, 10px) scale(.7); }
+  15%  { opacity: 1; transform: translate(0, -4px) scale(1.18); }
+  35%  { opacity: 1; transform: translate(0, -14px) scale(1.0); }
+  100% { opacity: 0; transform: translate(0, -90px) scale(.85); }
+}
+@keyframes ln-chain-break-label {
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(.85); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.95); }
+}

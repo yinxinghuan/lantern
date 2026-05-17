@@ -1,0 +1,217 @@
+.ln-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  color: #f4f4f4;
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+
+  &__sky {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(70% 50% at 50% 0%, #1a3c5e 0%, #0a1928 55%, #050d1a 100%);
+  }
+
+  // Soft aurora swirl across the top
+  &__aurora {
+    position: absolute;
+    inset: 0 0 55% 0;
+    background:
+      radial-gradient(60% 80% at 22% 30%, rgba(73, 222, 178, .14) 0%, transparent 70%),
+      radial-gradient(50% 70% at 78% 40%, rgba(110, 188, 246, .20) 0%, transparent 70%),
+      radial-gradient(40% 60% at 50% 8%,  rgba(180, 130, 220, .12) 0%, transparent 65%);
+    filter: blur(10px);
+    animation: ln-splash-aurora 18s ease-in-out infinite alternate;
+  }
+
+  // Ice plane — the TOP starts with the same dark navy as the iceberg wet-base
+  // ellipses so the two layers visually merge (no horizontal break line, no
+  // "floating icebergs"). It then quickly fades up to bright snow and gently
+  // back down to mid-blue at the foreground for depth.
+  &__ice {
+    position: absolute;
+    inset: 78% 0 0 0;
+    background:
+      linear-gradient(180deg,
+        #1c3650 0%,        // wet-ice shadow — matches iceberg base ellipses
+        #4a7393 4%,
+        #8eb5d0 10%,
+        #cce1ee 22%,       // bright snowfield
+        #d6e6f1 40%,
+        #c3dbeb 60%,
+        #aacae0 80%,
+        #88a8c0 100%);
+  }
+
+  // Iceberg silhouettes — bottom aligned EXACTLY with the ice plane top so
+  // there's no gap and no transparent strip between the two. The wet-base
+  // ellipses sit just inside the container, the dark-navy ice plane top
+  // continues the shadow directly below.
+  &__icebergs {
+    position: absolute;
+    bottom: 22%;
+    height: 22%;
+    pointer-events: none;
+    svg { width: 100%; height: 100%; display: block; overflow: visible; }
+    &--back {
+      left: -50%;
+      width: 200%;
+      bottom: 24%;
+      height: 14%;
+      opacity: .55;
+      filter: blur(.5px);
+      animation: ln-splash-iceberg-drift 60s linear infinite;
+    }
+    &--front {
+      left: 0;
+      width: 100%;
+    }
+  }
+
+  &__snow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  &__flake {
+    position: absolute;
+    top: -10px;
+    background: #fff;
+    border-radius: 50%;
+    opacity: .85;
+    box-shadow: 0 0 5px rgba(255,255,255,.6);
+    animation-name: ln-splash-snowfall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  &__content {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    padding-bottom: max(48px, env(safe-area-inset-bottom, 24px));
+    text-align: center;
+  }
+
+  &__title {
+    margin: 0 0 18px;
+    font-family: 'Baloo 2', 'Space Grotesk', system-ui, sans-serif;
+    // Big and punchy. Lower bound bigger than before per user feedback.
+    font-size: clamp(76px, 22vw, 124px);
+    font-weight: 800;
+    letter-spacing: -.01em;
+    line-height: .95;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-shadow:
+      0 4px 0  rgba(255,255,255,.04),
+      0 8px 32px rgba(50, 150, 220, .45),
+      0 0 90px  rgba(120, 200, 255, .22);
+  }
+  &__title-emph {
+    background: linear-gradient(180deg, #ffffff 0%, #c4dbeb 70%, #8eb3cc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    &--accent {
+      background: linear-gradient(180deg, #ffe17a 0%, #ff9844 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 4px 14px rgba(255,170,60,.4));
+    }
+  }
+  &__subtitle {
+    margin: 0 0 36px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(180, 220, 250, .65);
+    white-space: nowrap;
+  }
+
+  &__best {
+    margin-bottom: 24px;
+    padding: 6px 18px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  &__best-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .25em;
+    color: rgba(255, 220, 130, .7);
+  }
+  &__best-value {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffd84a;
+    letter-spacing: -.01em;
+  }
+
+  &__cta {
+    position: relative;
+    background: linear-gradient(135deg, #ffe17a 0%, #ff9844 60%, #ff6b3a 100%);
+    color: #1a1a1a;
+    border: none;
+    padding: 18px 44px;
+    border-radius: 999px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow:
+      0 18px 40px rgba(255, 150, 60, .48),
+      inset 0 1px 0 rgba(255,255,255,.65);
+    z-index: 1;
+    transition: transform .15s ease;
+    &:active { transform: translateY(2px); }
+  }
+  &__cta-text {
+    position: relative; z-index: 2;
+  }
+  &__cta-pulse {
+    position: absolute;
+    inset: -4px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 200, 100, .65);
+    animation: ln-splash-cta-pulse 1.8s ease-out infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes ln-splash-snowfall {
+  0%   { transform: translate(0, -10px); }
+  100% { transform: translate(30px, 110vh); }
+}
+@keyframes ln-splash-aurora {
+  0%   { opacity: .55; transform: translateX(-1%); }
+  100% { opacity: .95; transform: translateX( 1%); }
+}
+@keyframes ln-splash-iceberg-drift {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes ln-splash-cta-pulse {
+  0%   { transform: scale(.96); opacity: .9;  }
+  100% { transform: scale(1.22); opacity: 0;  }
+}
