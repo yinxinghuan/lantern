@@ -123,20 +123,51 @@ function spawnMonsterTier(d: GameRef, tuning: LevelTuning, tier: MonsterTier) {
   });
 }
 
-// Place the exit stone at a random position far from the player. This is
-// the level goal — the player must navigate to it through the dark.
+// Helper — does (x,z) collide with any pillar or the altar, with a given
+// clearance? Used to keep exit stones from spawning inside obstacles.
+function collidesWithObstacle(d: GameRef, x: number, z: number, clearance: number): boolean {
+  // Altar at origin, basin outer radius 1.35
+  if (Math.hypot(x, z) < 1.35 + clearance) return true;
+  for (const p of d.pillars) {
+    const base =
+      p.variant === 'dome' ? 1.15 :
+      p.variant === 'cluster' ? 0.95 :
+      0.70;
+    const r = base * p.scale + clearance;
+    const dx = x - p.position.x;
+    const dz = z - p.position.z;
+    if (dx * dx + dz * dz < r * r) return true;
+  }
+  return false;
+}
+
+// Place the exit stone at a random position far from the player AND clear
+// of any pillar / the altar. The exit halo is ~2.8u so use 3.0u clearance
+// to keep the obelisk visually free.
 function spawnExit(d: GameRef, tuning: LevelTuning) {
-  for (let i = 0; i < 40; i++) {
+  const EXIT_CLEAR = 3.0;
+  for (let i = 0; i < 80; i++) {
     const x = (Math.random() - 0.5) * (PLAYFIELD - 4);
     const z = (Math.random() - 0.5) * (PLAYFIELD - 4);
     const dx = x - d.pos.x;
     const dz = z - d.pos.z;
-    if (Math.hypot(dx, dz) >= tuning.exitMinDist) {
+    if (Math.hypot(dx, dz) < tuning.exitMinDist) continue;
+    if (collidesWithObstacle(d, x, z, EXIT_CLEAR)) continue;
+    d.exit = { position: new THREE.Vector3(x, 0, z) };
+    return;
+  }
+  // Last-resort fallback — try a few opposite-of-player positions with
+  // shrinking clearance so we don't end up null on a crowded level.
+  for (const c of [2.4, 1.8, 1.2]) {
+    const x = -d.pos.x;
+    const z = -d.pos.z;
+    if (!collidesWithObstacle(d, x, z, c)) {
       d.exit = { position: new THREE.Vector3(x, 0, z) };
       return;
     }
   }
-  // Fallback if we couldn't satisfy min distance — just place opposite
+  // Truly stuck — just plant it; the player can still see it floating
+  // beside the obstacle.
   d.exit = { position: new THREE.Vector3(-d.pos.x, 0, -d.pos.z) };
 }
 
