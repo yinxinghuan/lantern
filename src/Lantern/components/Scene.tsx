@@ -65,16 +65,18 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
     groupRef.current.position.copy(d.pos);
     groupRef.current.rotation.y = d.rot;
     const t = clock.getElapsedTime();
-    // Two-band flicker:
+    // Two-band flicker — wider amplitude than before so the breath reads
+    // clearly. Range approximately [0.65, 1.35] on the slow band.
     //   • slow sinusoid (~5.5s period) → the lantern's "breath"
-    //   • fast jitter   (~7Hz)         → flame restlessness
-    // Combined to give a value in roughly [0.78, 1.22].
-    const slow = Math.sin(t * 1.14) * 0.18;
-    const fast = (Math.sin(t * 7.0) + Math.sin(t * 11.3) * 0.4) * 0.06;
+    //   • fast jitter   (~7-11Hz)      → flame restlessness
+    const slow = Math.sin(t * 1.14) * 0.32;
+    const fast = (Math.sin(t * 7.0) + Math.sin(t * 11.3) * 0.4) * 0.08;
     const breath = 1.0 + slow + fast;
     if (lanternLightRef.current) {
       lanternLightRef.current.intensity = LANTERN_BASE_INTENSITY * breath;
-      lanternLightRef.current.distance  = LANTERN_BASE_DISTANCE  * (0.94 + slow * 0.55);
+      // Distance breathes much more visibly now — range from ~0.62×D when
+      // the flame ducks to ~1.22×D when it flares.
+      lanternLightRef.current.distance  = LANTERN_BASE_DISTANCE  * (0.92 + slow * 0.95);
     }
     if (lanternMat.current) {
       lanternMat.current.emissiveIntensity = 3.2 * breath;

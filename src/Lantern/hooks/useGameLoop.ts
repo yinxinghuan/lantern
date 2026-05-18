@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
-  PLAYFIELD, ARENA_HALF, PLAYER_SPEED,
+  PLAYFIELD, ARENA_HALF, PLAYER_SPEED, PLAYER_RADIUS,
   LIGHT_BASE_RADIUS, LIGHT_RED_BONUS, LIGHT_MAX_RADIUS, LIGHT_GREEN_DURATION, LIGHT_GREEN_MULT,
   WALL_RADIUS, WALL_DURATION,
   MONSTER_COUNT_BASE, MONSTER_SPAWN_INTERVAL, MONSTER_MAX,
@@ -200,6 +200,39 @@ export function useGameLoop(p: GameLoopParams) {
     }
     d.pos.x = Math.max(-ARENA_HALF + 0.5, Math.min(ARENA_HALF - 0.5, d.pos.x));
     d.pos.z = Math.max(-ARENA_HALF + 0.5, Math.min(ARENA_HALF - 0.5, d.pos.z));
+
+    // ---- COLLISIONS — pillars + central altar ----
+    // Push the player out of solid obstacles along the shortest axis. Cheap
+    // O(N) per pillar; N is small (~28) so this is fine.
+    for (const p of d.pillars) {
+      // Effective collision radius: scale * base footprint + player radius.
+      // Footprints by variant — these match the renderer's bottom geometry.
+      const base =
+        p.variant === 'dome' ? 1.15 :
+        p.variant === 'cluster' ? 0.95 :
+        0.70;
+      const r = base * p.scale + PLAYER_RADIUS;
+      const dx = d.pos.x - p.position.x;
+      const dz = d.pos.z - p.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.001 && dist < r) {
+        const n = 1 / dist;
+        d.pos.x = p.position.x + dx * n * r;
+        d.pos.z = p.position.z + dz * n * r;
+      }
+    }
+    // Altar at world origin — basin outer radius 1.35.
+    {
+      const ALTAR_R = 1.35 + PLAYER_RADIUS;
+      const dx = d.pos.x;
+      const dz = d.pos.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.001 && dist < ALTAR_R) {
+        const n = 1 / dist;
+        d.pos.x = dx * n * ALTAR_R;
+        d.pos.z = dz * n * ALTAR_R;
+      }
+    }
 
     // ---- LIGHT RADIUS ----
     if (d.greenT > 0) d.greenT = Math.max(0, d.greenT - c);
