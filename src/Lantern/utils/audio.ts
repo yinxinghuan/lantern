@@ -210,6 +210,70 @@ function scheduleDrip() {
   }, delay * 1000) as unknown as number;
 }
 
+// ---------- EERIE MELODY LAYER ----------
+// Sparse low-register notes in D minor that sit on top of the drone bed.
+// Each "phrase" is two detuned sine tones (a sustained main note + an
+// inharmonic shadow partial 12 cents below) so the result beats slightly
+// and feels unsettled. Scheduled at random intervals; cadence + volume
+// scale with `bgmTension` so deeper levels feel more haunted.
+//
+// D minor scale notes (relative to D3 = ~146.8 Hz):
+//   D3, F3, G3, A3, Bb3, C4, D4, F4, Eb4 (dissonant lean)
+const MELODY_NOTES_HZ = [146.83, 174.61, 196.0, 220.0, 233.08, 261.63, 293.66, 349.23, 311.13];
+let melodyTimer: number | null = null;
+let bgmTension = 0.3;
+
+export function setBgmTension(tension: number) {
+  bgmTension = Math.max(0, Math.min(1, tension));
+}
+
+function melodyVoice(freq: number, t0: number, peak: number) {
+  if (!ctx || !bgmGain) return;
+  // Main + slightly-detuned shadow for beating dissonance.
+  for (const detune of [0, -12]) {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    const f = freq * Math.pow(2, detune / 1200);
+    o.frequency.setValueAtTime(f, t0);
+    const g = ctx.createGain();
+    const dur = 2.4 + Math.random() * 1.2;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0006, t0 + dur);
+    // Lowpass shaped like a hollow vowel
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 1200;
+    filt.Q.value = 1.6;
+    o.connect(filt).connect(g).connect(bgmGain);
+    o.start(t0);
+    o.stop(t0 + dur + 0.1);
+  }
+}
+
+function scheduleMelody() {
+  if (!ctx || !bgmGain || !bgmRunning) {
+    melodyTimer = null;
+    return;
+  }
+  // Gap shrinks as tension rises: ~18s at tension=0 → ~5s at tension=1.
+  const baseGap = 18 - bgmTension * 13;
+  const delaySec = baseGap + (Math.random() - 0.5) * 5;
+  melodyTimer = window.setTimeout(() => {
+    if (!ctx || !bgmGain || !bgmRunning) return;
+    // Sometimes skip — silence is part of the texture, esp. at low tension
+    const playChance = 0.5 + bgmTension * 0.45;
+    if (Math.random() < playChance) {
+      const t = ctx.currentTime + 0.02;
+      const idx = Math.floor(Math.random() * MELODY_NOTES_HZ.length);
+      // Volume scales with tension. Stays subtle on L1, more present on L6.
+      const peak = (0.025 + bgmTension * 0.045);
+      melodyVoice(MELODY_NOTES_HZ[idx], t, peak);
+    }
+    scheduleMelody();
+  }, Math.max(2000, delaySec * 1000)) as unknown as number;
+}
+
 export function startBgm(volume = 0.18) {
   const c = ensureCtx();
   if (!c || !master) return;
@@ -271,6 +335,7 @@ export function startBgm(volume = 0.18) {
 
   bgmRunning = true;
   scheduleDrip();
+  scheduleMelody();
 }
 
 function scheduleWindSwell() {
@@ -287,6 +352,7 @@ function scheduleWindSwell() {
 export function stopBgm() {
   bgmRunning = false;
   if (bgmTimer !== null) { window.clearTimeout(bgmTimer); bgmTimer = null; }
+  if (melodyTimer !== null) { window.clearTimeout(melodyTimer); melodyTimer = null; }
   stopHeartbeat();
   if (bgmGain && ctx) {
     const t = ctx.currentTime;

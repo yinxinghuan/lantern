@@ -11,6 +11,8 @@ export interface Stick {
 
 export type MonsterState = 'lurking' | 'fleeing' | 'striking' | 'cooldown';
 
+export type MonsterTier = 'lurker' | 'stalker' | 'boss';
+
 export interface Monster {
   id: number;
   position: THREE.Vector3;
@@ -22,7 +24,10 @@ export interface Monster {
   strikeT: number;        // counts up: 0→TELEGRAPH = warning, then up to +LIVE = live, then resets
   strikeAimX: number;
   strikeAimZ: number;
-  isBoss?: boolean;       // The Dark Lord — only retreats from green strong-light
+  tier: MonsterTier;
+  // Cached compat aliases — keep `isBoss` for any external code still
+  // reading it; new code should switch on `tier`.
+  isBoss?: boolean;
 }
 
 export interface Crystal {

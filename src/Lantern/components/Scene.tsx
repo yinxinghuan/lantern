@@ -6,6 +6,7 @@ import {
   PLAYER_SPEED,
   WALL_RADIUS, WALL_DURATION,
   MONSTER_STRIKE_RANGE_MAX, MONSTER_STRIKE_TELEGRAPH,
+  getLevelTuning,
 } from '../constants';
 import { useGameLoop, GameRef, PickupKind, SfxKey } from '../hooks/useGameLoop';
 import type { Stick } from '../types';
@@ -13,6 +14,7 @@ import type { Stick } from '../types';
 interface SceneProps {
   state: React.MutableRefObject<GameRef>;
   playing: boolean;
+  level: number;            // drives per-level palette
   stickRef: React.MutableRefObject<Stick>;
   onScore: (s: number) => void;
   onDepth: (d: number) => void;
@@ -781,16 +783,23 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
         }
       }
 
-      // Eye color flip — yellow when lurking/fleeing/cooldown, red when
-      // mid-strike so the player knows WHICH monster is the one launching.
-      // The boss's eyes are ALWAYS red (it doesn't fear the light), with
-      // an extra glow pulse to mark its identity.
+      // Eye color flip per tier. Lurkers: yellow→red on strike. Stalkers:
+      // always blue-violet (immune to light, but smaller threat than boss).
+      // Boss: always deep red with a slow ominous pulse.
       const eyes = eyeMats.current.get(m.id);
       if (eyes) {
-        if (m.isBoss) {
+        if (m.tier === 'boss') {
           eyes[0].emissive.setHex(0xff2030);
           eyes[1].emissive.setHex(0xff2030);
           const pulse = 1.8 + Math.sin(t * 4.5) * 0.6;
+          eyes[0].emissiveIntensity = pulse;
+          eyes[1].emissiveIntensity = pulse;
+        } else if (m.tier === 'stalker') {
+          // Constantly glowing cool violet — the visual "warning" that
+          // this one doesn't fear your light.
+          eyes[0].emissive.setHex(striking ? 0xff4090 : 0x8060ff);
+          eyes[1].emissive.setHex(striking ? 0xff4090 : 0x8060ff);
+          const pulse = 1.5 + Math.sin(t * 5.5) * 0.5;
           eyes[0].emissiveIntensity = pulse;
           eyes[1].emissiveIntensity = pulse;
         } else if (striking) {
@@ -812,23 +821,32 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
   const d = state.current;
   return (
     <>
-      {d.monsters.map(m => (
+      {d.monsters.map(m => {
+        const bodyColor =
+          m.tier === 'boss' ? '#100618' :
+          m.tier === 'stalker' ? '#160a22' :
+          '#0a0810';
+        const scale =
+          m.tier === 'boss' ? 1.65 :
+          m.tier === 'stalker' ? 1.10 :
+          1.0;
+        return (
         <group
           key={m.id}
-          scale={m.isBoss ? 1.65 : 1.0}
+          scale={scale}
           ref={el => {
             if (el) groupRefs.current.set(m.id, el);
             else groupRefs.current.delete(m.id);
           }}
         >
-          {/* main body — twisted dark hood. Boss uses a slightly purple-
-              tinted black so it reads as distinct even at the same scale. */}
+          {/* main body — twisted dark hood. Stalker = deep violet-black,
+              boss = deeper purple-black, lurker = plain dark. */}
           <mesh position={[0, 0.85, 0]} castShadow>
             <coneGeometry args={[0.55, 1.5, 8]} />
-            <meshStandardMaterial color={m.isBoss ? '#100618' : '#0a0810'} roughness={0.95} />
+            <meshStandardMaterial color={bodyColor} roughness={0.95} />
           </mesh>
-          {/* Boss crown — a glowing red horned ring above the hood */}
-          {m.isBoss && (
+          {/* Boss crown — glowing red horned ring above the hood */}
+          {m.tier === 'boss' && (
             <>
               <mesh position={[0, 1.78, 0]}>
                 <torusGeometry args={[0.34, 0.05, 6, 18]} />
@@ -843,6 +861,15 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
                 <meshStandardMaterial color="#1a040a" emissive="#ff2030" emissiveIntensity={1.4} />
               </mesh>
             </>
+          )}
+          {/* Stalker mark — a small floating violet rune above the hood
+              ring so the player can tell it apart from a lurker at a
+              glance, even before the eyes are visible. */}
+          {m.tier === 'stalker' && (
+            <mesh position={[0, 1.78, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.18, 0.025, 5, 14]} />
+              <meshStandardMaterial color="#3a1b48" emissive="#a060ff" emissiveIntensity={1.8} />
+            </mesh>
           )}
           {/* hood ring */}
           <mesh position={[0, 1.55, 0]}>
@@ -934,7 +961,8 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
             <meshBasicMaterial color="#ff6060" transparent opacity={0.95} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
         </group>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -1044,23 +1072,20 @@ export function Scene(props: SceneProps) {
     haptic: props.haptic,
   });
 
+  const palette = getLevelTuning(props.level).palette;
   return (
     <>
       <FollowCamera state={state} />
-      {/* Cave ambient — very dark with a tiny up-fill so silhouettes are barely visible outside the lantern */}
-      {/* Night cave atmosphere. Three.js distance fog. PREVIOUSLY 6→22 which
-          put the player (camera-distance ~17.5 with cam at y=16) at ~70%
-          fog blend already — the canvas read as dim even before the CSS
-          fog overlay multiplied on top. New range 14→58 keeps the player
-          and immediate surroundings clear, distant features fade. */}
-      <fog attach="fog" args={['#080c14', 14, 58]} />
-      <ambientLight intensity={0.38} color="#1f2c40" />
-      <hemisphereLight args={['#36456a', '#101418', 0.32]} />
+      {/* Per-level palette: each level recolors the cave to give descent
+          a visual narrative — warm surface → wet pools → amber vault →
+          purple abyss. Driven by the `level` prop. */}
+      <fog attach="fog" args={[palette.fog, 14, 58]} />
+      <ambientLight intensity={0.38} color={palette.ambient} />
+      <hemisphereLight args={[palette.hemiSky, palette.hemiGround, 0.32]} />
       <Fireflies />
-      {/* Floor: dark damp stone */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[ARENA_HALF * 4, ARENA_HALF * 4]} />
-        <meshStandardMaterial color="#2c2118" roughness={0.85} />
+        <meshStandardMaterial color={palette.floor} roughness={0.85} />
       </mesh>
       {/* Cave walls (outer ring) — taller dark cylinders around perimeter */}
       <mesh position={[0, 1.5, -ARENA_HALF - 0.5]} castShadow>

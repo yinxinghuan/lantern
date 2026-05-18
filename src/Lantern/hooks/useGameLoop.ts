@@ -10,11 +10,11 @@ import {
   CRYSTAL_PICKUP_RADIUS, CRYSTAL_RESPAWN_INTERVAL, CRYSTAL_MAX,
   CRYSTAL_TYPES,
   SCORE_GOLD, SCORE_RED, SCORE_GREEN, SCORE_BLUE, SCORE_DEPTH_PER_UNIT,
-  PILLAR_COUNT, GRACE_PERIOD,
+  GRACE_PERIOD,
   EXIT_PICKUP_RADIUS, getLevelTuning, LEVELS,
 } from '../constants';
 import type { CrystalType, LevelTuning } from '../constants';
-import type { Crystal, ExitStone, FxEvent, Monster, Pillar, PillarVariant, Stick } from '../types';
+import type { Crystal, ExitStone, FxEvent, Monster, MonsterTier, Pillar, PillarVariant, Stick } from '../types';
 
 export type SfxKey = 'pickup_gold' | 'pickup_red' | 'pickup_green' | 'pickup_blue' | 'strike_telegraph' | 'strike_hit' | 'wall_pulse' | 'monster_flee' | 'game_over';
 
@@ -103,9 +103,10 @@ function randomSpawnPos(d: GameRef, minDistFromPlayer: number, marginFromEdge: n
   return new THREE.Vector3((Math.random() - 0.5) * PLAYFIELD * 0.8, 0, (Math.random() - 0.5) * PLAYFIELD * 0.8);
 }
 
-function spawnMonster(d: GameRef, tuning: LevelTuning) {
+function spawnMonsterTier(d: GameRef, tuning: LevelTuning, tier: MonsterTier) {
   if (d.monsters.length >= tuning.monsterMax) return;
-  const pos = randomSpawnPos(d, 14, 2);
+  const minDist = tier === 'boss' ? 18 : 14;
+  const pos = randomSpawnPos(d, minDist, 2);
   d.monsters.push({
     id: nextId(),
     position: pos,
@@ -117,25 +118,8 @@ function spawnMonster(d: GameRef, tuning: LevelTuning) {
     strikeT: 0,
     strikeAimX: 0,
     strikeAimZ: 0,
-  });
-}
-
-// Spawn the boss monster — single big shadow that only fears strong light
-// (green crystal active). Used only on isBoss levels.
-function spawnBossMonster(d: GameRef) {
-  const pos = randomSpawnPos(d, 18, 2);
-  d.monsters.push({
-    id: nextId(),
-    position: pos,
-    velocity: new THREE.Vector3(),
-    rotation: Math.random() * Math.PI * 2,
-    state: 'lurking',
-    fleeT: 0,
-    cooldownT: 0,
-    strikeT: 0,
-    strikeAimX: 0,
-    strikeAimZ: 0,
-    isBoss: true,
+    tier,
+    isBoss: tier === 'boss',
   });
 }
 
@@ -156,10 +140,9 @@ function spawnExit(d: GameRef, tuning: LevelTuning) {
   d.exit = { position: new THREE.Vector3(-d.pos.x, 0, -d.pos.z) };
 }
 
-// Reset everything that changes per level (monsters, crystals, walls, exit)
-// while preserving cumulative score and the player's lantern upgrades.
-// The exit deliberately does NOT spawn here — it appears only after the
-// player collects tuning.exitNeed crystals (any type) during the level.
+// Reset everything that changes per level (monsters, crystals, walls, exit,
+// pillars) while preserving cumulative score and lantern upgrades. Pillars
+// re-shuffle each level so the cave layout feels different.
 export function startLevel(d: GameRef, level: number) {
   const tuning = getLevelTuning(level);
   d.level = level;
@@ -171,6 +154,8 @@ export function startLevel(d: GameRef, level: number) {
   d.crystals = [];
   d.walls = [];
   d.exit = null;
+  d.pillars = [];
+  for (let i = 0; i < tuning.pillarCount; i++) d.pillars.push(spawnPillar(tuning.pillarScaleBias));
   d.monsterSpawnTimer = 0;
   d.crystalRespawnTimer = 0;
   d.pos.set(0, 0, 5);
@@ -178,9 +163,9 @@ export function startLevel(d: GameRef, level: number) {
   d.maxDepth = Math.hypot(d.pos.x, d.pos.z);
 
   for (let i = 0; i < tuning.crystalInitial; i++) spawnCrystal(d);
-  for (let i = 0; i < tuning.monsterCount; i++) spawnMonster(d, tuning);
-  // Boss level — one Dark Lord that doesn't fear normal light.
-  if (tuning.isBoss) spawnBossMonster(d);
+  for (let i = 0; i < tuning.lurkerCount; i++) spawnMonsterTier(d, tuning, 'lurker');
+  for (let i = 0; i < tuning.stalkerCount; i++) spawnMonsterTier(d, tuning, 'stalker');
+  if (tuning.isBoss) spawnMonsterTier(d, tuning, 'boss');
 }
 
 // Try to summon the exit. Called after each pickup once the threshold is
@@ -216,7 +201,7 @@ function pickPillarVariant(): PillarVariant {
   return 'spike';
 }
 
-function spawnPillar(): Pillar {
+function spawnPillar(scaleBias: number = 1.0): Pillar {
   // Keep pillars away from the dead center (where the altar sits) and the
   // very edge (where the perimeter wall hugs).
   let x: number, z: number;
@@ -228,7 +213,7 @@ function spawnPillar(): Pillar {
   return {
     id: nextId(),
     position: new THREE.Vector3(x!, 0, z!),
-    scale: 0.75 + Math.random() * 1.6,
+    scale: (0.75 + Math.random() * 1.6) * scaleBias,
     rot: Math.random() * Math.PI * 2,
     variant: pickPillarVariant(),
   };
@@ -253,7 +238,7 @@ export interface GameLoopParams {
 export function useGameLoop(p: GameLoopParams) {
   if (!p.state.current.initialized) {
     const d = p.state.current;
-    for (let i = 0; i < PILLAR_COUNT; i++) d.pillars.push(spawnPillar());
+    // startLevel handles pillars now (re-shuffled per level via tuning).
     startLevel(d, d.level || 1);
     d.initialized = true;
   }
@@ -357,10 +342,11 @@ export function useGameLoop(p: GameLoopParams) {
 
       const strongLight = d.greenT > 0;
       const lit = dist < currentRadius;
-      // The Dark Lord ignores normal light — only flees during strong
-      // light (green crystal active). For regular monsters, "scared"
-      // matches "lit". This is the whole gimmick of the boss.
-      const scared = m.isBoss ? (strongLight && lit) : lit;
+      // Lurker: fears normal light. Stalker & Boss: only fear strong
+      // light (green crystal active). Stalkers are the L3+ threat that
+      // doesn't trivialize as the player's lantern grows.
+      const lightImmune = m.tier === 'stalker' || m.tier === 'boss';
+      const scared = lightImmune ? (strongLight && lit) : lit;
 
       // Walls push the monster outward
       for (const w of d.walls) {
@@ -374,15 +360,16 @@ export function useGameLoop(p: GameLoopParams) {
         }
       }
 
-      // State machine — boss tunes (slower base, faster windup, longer
-      // reach). Regular monsters get bossSpeedK=1.0 so this is a no-op.
-      const bossSpeedK = m.isBoss ? 0.70 : 1.0;
-      const bossTelegraphK = m.isBoss ? 0.85 : 1.0;
-      const bossRangeK = m.isBoss ? 1.10 : 1.0;
-      const monsterBaseSpeed = MONSTER_BASE_SPEED * tuning.monsterSpeed * bossSpeedK;
-      const monsterFleeSpeed = MONSTER_FLEE_SPEED * tuning.monsterFleeSpeed * bossSpeedK;
-      const myTelegraph = tuning.strikeTelegraph * bossTelegraphK;
-      const myRangeMax  = tuning.strikeRangeMax  * bossRangeK;
+      // Per-tier multipliers on top of the level's base tuning. Stalker
+      // sits between lurker and boss: slightly slower but a tad faster
+      // windup. Boss is the most patient + most lethal.
+      const speedK     = m.tier === 'boss' ? 0.70 : m.tier === 'stalker' ? 0.92 : 1.0;
+      const telegraphK = m.tier === 'boss' ? 0.85 : m.tier === 'stalker' ? 0.92 : 1.0;
+      const rangeK     = m.tier === 'boss' ? 1.10 : m.tier === 'stalker' ? 1.05 : 1.0;
+      const monsterBaseSpeed = MONSTER_BASE_SPEED * tuning.monsterSpeed * speedK;
+      const monsterFleeSpeed = MONSTER_FLEE_SPEED * tuning.monsterFleeSpeed * speedK;
+      const myTelegraph = tuning.strikeTelegraph * telegraphK;
+      const myRangeMax  = tuning.strikeRangeMax  * rangeK;
 
       if (scared && m.state !== 'fleeing') {
         m.state = 'fleeing';
@@ -471,10 +458,15 @@ export function useGameLoop(p: GameLoopParams) {
     d.nearestMonsterDist = nearestDist;
 
     // ---- MONSTER SPAWN OVER TIME ----
+    // Respawn type follows the level's stalkerSpawnRatio so the mix
+    // gradually shifts toward more lurkers being killed (off-screen) and
+    // replaced — preserving the lurker-as-fodder dynamic the player has
+    // earned by upgrading their lantern.
     d.monsterSpawnTimer += c;
     if (d.monsterSpawnTimer >= tuning.monsterSpawnInterval) {
       d.monsterSpawnTimer = 0;
-      spawnMonster(d, tuning);
+      const asStalker = Math.random() < tuning.stalkerSpawnRatio;
+      spawnMonsterTier(d, tuning, asStalker ? 'stalker' : 'lurker');
     }
 
     // ---- EXIT STONE PICKUP — level clear ----

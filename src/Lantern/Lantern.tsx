@@ -7,7 +7,7 @@ import { createGameState, startLevel } from './hooks/useGameLoop';
 import type { PickupKind, SfxKey } from './hooks/useGameLoop';
 import { getLevelTuning, LEVELS } from './constants';
 import { useJoystick } from './hooks/useJoystick';
-import { playSfx, setHeartbeatRate, startBgm, stopBgm, stopHeartbeat, unlockAudio } from './utils/audio';
+import { playSfx, setBgmTension, setHeartbeatRate, startBgm, stopBgm, stopHeartbeat, unlockAudio } from './utils/audio';
 import { t } from './i18n';
 import alteruSvg from './img/alteru.svg';
 import './Lantern.less';
@@ -141,6 +141,8 @@ export function Lantern() {
       setTimeLeft(Math.max(0, tuning.timeLimit - d.levelT));
       setLevel(d.level);
       setPickupsNow(d.levelPickups);
+      // Drive the BGM eerie-melody cadence from the level's tension knob.
+      setBgmTension(tuning.bgmTension);
       // Exit-summon one-shot — pulse the UI when the threshold is hit.
       if (d.exitSummonedJustNow) {
         d.exitSummonedJustNow = false;
@@ -214,6 +216,7 @@ export function Lantern() {
             <Scene
               state={stateRef}
               playing={phase === 'playing'}
+              level={level}
               stickRef={stickRef}
               onScore={onScore}
               onDepth={onDepth}
