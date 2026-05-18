@@ -638,13 +638,14 @@ export function Scene(props: SceneProps) {
     <>
       <FollowCamera state={state} />
       {/* Cave ambient — very dark with a tiny up-fill so silhouettes are barely visible outside the lantern */}
-      {/* Night cave atmosphere — keep it dark, but give the air a faint cool
-          tint so the warm lantern glow reads against a cold periphery. Mirrors
-          Piper's NIGHT preset, dialed down ~30% since this game lives in a
-          cave rather than an open pasture. */}
-      <fog attach="fog" args={['#080c14', 6, 22]} />
-      <ambientLight intensity={0.20} color="#1a2436" />
-      <hemisphereLight args={['#2a3450', '#080a12', 0.18]} />
+      {/* Night cave atmosphere. Three.js distance fog. PREVIOUSLY 6→22 which
+          put the player (camera-distance ~17.5 with cam at y=16) at ~70%
+          fog blend already — the canvas read as dim even before the CSS
+          fog overlay multiplied on top. New range 14→58 keeps the player
+          and immediate surroundings clear, distant features fade. */}
+      <fog attach="fog" args={['#080c14', 14, 58]} />
+      <ambientLight intensity={0.38} color="#1f2c40" />
+      <hemisphereLight args={['#36456a', '#101418', 0.32]} />
       <Fireflies />
       {/* Floor: dark damp stone */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>

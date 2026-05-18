@@ -152,10 +152,11 @@ export function Lantern() {
           <div
             className="ln__fog"
             style={{
-              // Widened bright zone — the lantern's lit area shouldn't be
-              // dimmed by the multiply overlay. Only the periphery (past
-              // ~70% radius) gets meaningful darkening.
-              background: `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${Math.max(22, lightRadius * 12)}%, rgba(0,0,0,0.10) ${Math.max(42, lightRadius * 18)}%, rgba(0,0,0,0.42) 80%)`,
+              // Much softer than before — the visible darkening only kicks
+              // in past 55% of the screen radius. Previous setup compounded
+              // with the 3D fog and produced the "black overlay" effect the
+              // user reported, especially on phone screens.
+              background: `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${Math.max(40, lightRadius * 14)}%, rgba(0,0,0,0.06) ${Math.max(58, lightRadius * 18)}%, rgba(0,0,0,0.30) 90%)`,
             }}
           />
         </div>
