@@ -30,6 +30,10 @@ export interface Crystal {
   type: CrystalType;
 }
 
+export interface ExitStone {
+  position: THREE.Vector3;
+}
+
 export interface Wall {
   id: number;
   position: THREE.Vector3;

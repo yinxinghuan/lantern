@@ -4,17 +4,17 @@ import {
   PLAYFIELD, ARENA_HALF, PLAYER_SPEED, PLAYER_RADIUS,
   LIGHT_BASE_RADIUS, LIGHT_RED_BONUS, LIGHT_MAX_RADIUS, LIGHT_GREEN_DURATION, LIGHT_GREEN_MULT,
   WALL_RADIUS, WALL_DURATION,
-  MONSTER_COUNT_BASE, MONSTER_SPAWN_INTERVAL, MONSTER_MAX,
   MONSTER_BASE_SPEED, MONSTER_FLEE_SPEED, MONSTER_FLEE_TIME,
-  MONSTER_STRIKE_RANGE_MIN, MONSTER_STRIKE_RANGE_MAX, MONSTER_STRIKE_TELEGRAPH, MONSTER_STRIKE_LIVE,
-  MONSTER_STRIKE_HIT_RADIUS, MONSTER_STRIKE_COOLDOWN,
-  CRYSTAL_INITIAL_COUNT, CRYSTAL_PICKUP_RADIUS, CRYSTAL_RESPAWN_INTERVAL, CRYSTAL_MAX,
+  MONSTER_STRIKE_RANGE_MIN, MONSTER_STRIKE_LIVE,
+  MONSTER_STRIKE_HIT_RADIUS,
+  CRYSTAL_PICKUP_RADIUS, CRYSTAL_RESPAWN_INTERVAL, CRYSTAL_MAX,
   CRYSTAL_TYPES,
   SCORE_GOLD, SCORE_RED, SCORE_GREEN, SCORE_BLUE, SCORE_DEPTH_PER_UNIT,
   PILLAR_COUNT, GRACE_PERIOD,
+  EXIT_PICKUP_RADIUS, getLevelTuning, LEVELS,
 } from '../constants';
-import type { CrystalType } from '../constants';
-import type { Crystal, FxEvent, Monster, Pillar, PillarVariant, Stick } from '../types';
+import type { CrystalType, LevelTuning } from '../constants';
+import type { Crystal, ExitStone, FxEvent, Monster, Pillar, PillarVariant, Stick } from '../types';
 
 export type SfxKey = 'pickup_gold' | 'pickup_red' | 'pickup_green' | 'pickup_blue' | 'strike_telegraph' | 'strike_hit' | 'wall_pulse' | 'monster_flee' | 'game_over';
 
@@ -28,7 +28,9 @@ export interface GameRef {
   crystals: Crystal[];
   walls: { id: number; position: THREE.Vector3; bornAt: number }[];
   pillars: Pillar[];
-  time: number;
+  exit: ExitStone | null;
+  time: number;        // total game time (across levels) — used for cooldowns
+  levelT: number;      // time elapsed within the current level
   score: number;
   redCount: number;
   goldCount: number;
@@ -41,18 +43,15 @@ export interface GameRef {
   fx: FxEvent[];
   initialized: boolean;
   gameOver: boolean;
+  // Level progression
+  level: number;       // 1-indexed
+  levelCleared: boolean;   // set when player touches exit; UI handles transition
+  victory: boolean;        // true after final level cleared
 }
 
 export function createGameState(): GameRef {
   return {
-    // Spawn the player a few units south of the altar (which sits at the
-    // world origin). Lets the player SEE their "home base" — they're not
-    // standing on top of it. With camera looking down-and-south, the altar
-    // is up-screen of the player at spawn.
     pos: new THREE.Vector3(0, 0, 5),
-    // Default facing up-screen (world -Z direction). With camera at (0, 16, 7)
-    // looking at origin, world +Z is screen-down; players intuitively expect
-    // their character to face up-screen / "forward into the unknown" at start.
     rot: Math.PI,
     speed: 0,
     lightRadius: LIGHT_BASE_RADIUS,
@@ -61,7 +60,9 @@ export function createGameState(): GameRef {
     crystals: [],
     walls: [],
     pillars: [],
+    exit: null,
     time: 0,
+    levelT: 0,
     score: 0,
     redCount: 0, goldCount: 0, greenCount: 0, blueCount: 0,
     maxDepth: 0,
@@ -71,6 +72,9 @@ export function createGameState(): GameRef {
     fx: [],
     initialized: false,
     gameOver: false,
+    level: 1,
+    levelCleared: false,
+    victory: false,
   };
 }
 
@@ -95,8 +99,8 @@ function randomSpawnPos(d: GameRef, minDistFromPlayer: number, marginFromEdge: n
   return new THREE.Vector3((Math.random() - 0.5) * PLAYFIELD * 0.8, 0, (Math.random() - 0.5) * PLAYFIELD * 0.8);
 }
 
-function spawnMonster(d: GameRef) {
-  if (d.monsters.length >= MONSTER_MAX) return;
+function spawnMonster(d: GameRef, tuning: LevelTuning) {
+  if (d.monsters.length >= tuning.monsterMax) return;
   const pos = randomSpawnPos(d, 14, 2);
   d.monsters.push({
     id: nextId(),
@@ -110,6 +114,47 @@ function spawnMonster(d: GameRef) {
     strikeAimX: 0,
     strikeAimZ: 0,
   });
+}
+
+// Place the exit stone at a random position far from the player. This is
+// the level goal — the player must navigate to it through the dark.
+function spawnExit(d: GameRef, tuning: LevelTuning) {
+  for (let i = 0; i < 40; i++) {
+    const x = (Math.random() - 0.5) * (PLAYFIELD - 4);
+    const z = (Math.random() - 0.5) * (PLAYFIELD - 4);
+    const dx = x - d.pos.x;
+    const dz = z - d.pos.z;
+    if (Math.hypot(dx, dz) >= tuning.exitMinDist) {
+      d.exit = { position: new THREE.Vector3(x, 0, z) };
+      return;
+    }
+  }
+  // Fallback if we couldn't satisfy min distance — just place opposite
+  d.exit = { position: new THREE.Vector3(-d.pos.x, 0, -d.pos.z) };
+}
+
+// Reset everything that changes per level (monsters, crystals, walls, exit)
+// while preserving cumulative score and the player's lantern upgrades.
+export function startLevel(d: GameRef, level: number) {
+  const tuning = getLevelTuning(level);
+  d.level = level;
+  d.levelT = 0;
+  d.levelCleared = false;
+  d.monsters = [];
+  d.crystals = [];
+  d.walls = [];
+  d.exit = null;
+  d.monsterSpawnTimer = 0;
+  d.crystalRespawnTimer = 0;
+  // Move the player back near the altar for a clean reset between levels.
+  // The exit spawns at >= tuning.exitMinDist from this.
+  d.pos.set(0, 0, 5);
+  d.rot = Math.PI;
+  d.maxDepth = Math.hypot(d.pos.x, d.pos.z);
+
+  for (let i = 0; i < tuning.crystalInitial; i++) spawnCrystal(d);
+  for (let i = 0; i < tuning.monsterCount; i++) spawnMonster(d, tuning);
+  spawnExit(d, tuning);
 }
 
 function spawnCrystal(d: GameRef, type?: CrystalType) {
@@ -174,16 +219,27 @@ export function useGameLoop(p: GameLoopParams) {
   if (!p.state.current.initialized) {
     const d = p.state.current;
     for (let i = 0; i < PILLAR_COUNT; i++) d.pillars.push(spawnPillar());
-    for (let i = 0; i < MONSTER_COUNT_BASE; i++) spawnMonster(d);
-    for (let i = 0; i < CRYSTAL_INITIAL_COUNT; i++) spawnCrystal(d);
+    startLevel(d, d.level || 1);
     d.initialized = true;
   }
 
   useFrame((_, delta) => {
     const d = p.state.current;
-    if (!p.playing || d.gameOver) return;
+    if (!p.playing || d.gameOver || d.levelCleared || d.victory) return;
     const c = Math.min(delta, 0.05);
     d.time += c;
+    d.levelT += c;
+    const tuning = getLevelTuning(d.level);
+
+    // ---- LEVEL TIMER ----
+    // Time runs out → light dies, the dark takes you.
+    if (d.levelT >= tuning.timeLimit) {
+      p.playSfx('game_over');
+      p.haptic?.('heavy');
+      d.gameOver = true;
+      setTimeout(() => p.onGameOver(Math.floor(d.score)), 500);
+      return;
+    }
 
     // ---- PLAYER MOVEMENT ----
     const stickMag = Math.hypot(p.stick.x, p.stick.y);
@@ -286,34 +342,37 @@ export function useGameLoop(p: GameLoopParams) {
         emitFx(d, 'monster_flee', m.position.x, m.position.z);
         p.playSfx('monster_flee');
       }
+      const monsterBaseSpeed = MONSTER_BASE_SPEED * tuning.monsterSpeed;
+      const monsterFleeSpeed = MONSTER_FLEE_SPEED * tuning.monsterFleeSpeed;
+
       if (m.state === 'fleeing') {
         m.fleeT -= c;
         if (dist > 0.001) {
           const n = 1 / dist;
-          m.velocity.x = -dx * n * MONSTER_FLEE_SPEED;
-          m.velocity.z = -dz * n * MONSTER_FLEE_SPEED;
+          m.velocity.x = -dx * n * monsterFleeSpeed;
+          m.velocity.z = -dz * n * monsterFleeSpeed;
         }
         if (m.fleeT <= 0 && !lit) m.state = 'lurking';
       } else if (m.state === 'cooldown') {
         m.cooldownT -= c;
         if (dist > 0.001) {
           const n = 1 / dist;
-          m.velocity.x = -dx * n * (MONSTER_BASE_SPEED * 0.35);
-          m.velocity.z = -dz * n * (MONSTER_BASE_SPEED * 0.35);
+          m.velocity.x = -dx * n * (monsterBaseSpeed * 0.35);
+          m.velocity.z = -dz * n * (monsterBaseSpeed * 0.35);
         }
         if (m.cooldownT <= 0) m.state = 'lurking';
       } else if (m.state === 'lurking') {
         if (dist > MONSTER_STRIKE_RANGE_MIN + 0.4) {
           if (dist > 0.001) {
             const n = 1 / dist;
-            m.velocity.x = dx * n * MONSTER_BASE_SPEED;
-            m.velocity.z = dz * n * MONSTER_BASE_SPEED;
+            m.velocity.x = dx * n * monsterBaseSpeed;
+            m.velocity.z = dz * n * monsterBaseSpeed;
           }
         } else {
           m.velocity.x *= 0.5;
           m.velocity.z *= 0.5;
         }
-        if (!lit && dist > MONSTER_STRIKE_RANGE_MIN && dist < MONSTER_STRIKE_RANGE_MAX) {
+        if (!lit && dist > MONSTER_STRIKE_RANGE_MIN && dist < tuning.strikeRangeMax) {
           m.state = 'striking';
           m.strikeT = 0;
           const inv = 1 / Math.max(dist, 0.001);
@@ -330,9 +389,9 @@ export function useGameLoop(p: GameLoopParams) {
           m.state = 'fleeing';
           m.fleeT = MONSTER_FLEE_TIME;
           m.strikeT = 0;
-        } else if (m.strikeT >= MONSTER_STRIKE_TELEGRAPH + MONSTER_STRIKE_LIVE) {
+        } else if (m.strikeT >= tuning.strikeTelegraph + MONSTER_STRIKE_LIVE) {
           m.state = 'cooldown';
-          m.cooldownT = MONSTER_STRIKE_COOLDOWN;
+          m.cooldownT = tuning.strikeCooldown;
           m.strikeT = 0;
         }
       }
@@ -346,9 +405,9 @@ export function useGameLoop(p: GameLoopParams) {
       m.position.z = Math.max(-ARENA_HALF + 0.5, Math.min(ARENA_HALF - 0.5, m.position.z));
 
       // STRIKE HIT TEST — during the live window only
-      if (m.state === 'striking' && m.strikeT >= MONSTER_STRIKE_TELEGRAPH) {
-        const handX = m.position.x + m.strikeAimX * MONSTER_STRIKE_RANGE_MAX;
-        const handZ = m.position.z + m.strikeAimZ * MONSTER_STRIKE_RANGE_MAX;
+      if (m.state === 'striking' && m.strikeT >= tuning.strikeTelegraph) {
+        const handX = m.position.x + m.strikeAimX * tuning.strikeRangeMax;
+        const handZ = m.position.z + m.strikeAimZ * tuning.strikeRangeMax;
         const hdx = handX - d.pos.x;
         const hdz = handZ - d.pos.z;
         if (Math.hypot(hdx, hdz) < MONSTER_STRIKE_HIT_RADIUS && d.time > GRACE_PERIOD) {
@@ -367,9 +426,30 @@ export function useGameLoop(p: GameLoopParams) {
 
     // ---- MONSTER SPAWN OVER TIME ----
     d.monsterSpawnTimer += c;
-    if (d.monsterSpawnTimer >= MONSTER_SPAWN_INTERVAL) {
+    if (d.monsterSpawnTimer >= tuning.monsterSpawnInterval) {
       d.monsterSpawnTimer = 0;
-      spawnMonster(d);
+      spawnMonster(d, tuning);
+    }
+
+    // ---- EXIT STONE PICKUP — level clear ----
+    if (d.exit) {
+      const ex = d.exit.position;
+      const edx = ex.x - d.pos.x;
+      const edz = ex.z - d.pos.z;
+      if (Math.hypot(edx, edz) < EXIT_PICKUP_RADIUS) {
+        // Cleared the level. Score bonus = base + time remaining * 5.
+        const timeBonus = Math.max(0, Math.floor((tuning.timeLimit - d.levelT) * 5));
+        const levelBonus = 100 * d.level;
+        d.score += levelBonus + timeBonus;
+        p.onScore(Math.floor(d.score));
+        p.playSfx('pickup_green');
+        p.haptic?.('heavy');
+        d.levelCleared = true;
+        if (d.level >= LEVELS.length) {
+          d.victory = true;
+        }
+        return;
+      }
     }
 
     // ---- CRYSTAL PICKUP ----

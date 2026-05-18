@@ -79,6 +79,168 @@
     text-transform: uppercase;
     line-height: 1;
   }
+  // Time countdown gets a red urgency tint when low
+  &__topbar-num--urgent {
+    color: #ff7a55;
+    text-shadow: 0 0 14px rgba(255, 120, 80, .45);
+    animation: ln-urgent-pulse 0.9s ease-in-out infinite alternate;
+  }
+
+  // Level pill — under the HUD topbar
+  &__level-pill {
+    margin: 8px auto 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 5px;
+    background: rgba(28,18,28,.55);
+    border: 1px solid rgba(255,200,130,.18);
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+    pointer-events: auto;
+  }
+  &__level-pill-num {
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    font-weight: 900;
+    font-size: 12px;
+    letter-spacing: .12em;
+    color: #ffd28a;
+  }
+  &__level-pill-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: .20em;
+    text-transform: uppercase;
+    color: rgba(220, 200, 170, .75);
+  }
+  // wrap level pill in centered flex (the HUD parent is full-width, so the
+  // inline-flex element doesn't center automatically without help)
+  &__hud {
+    text-align: center;
+  }
+
+  // Level intro overlay — appears at start of each level
+  &__level-intro {
+    position: absolute;
+    inset: 0;
+    z-index: 14;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    text-align: center;
+    animation: ln-level-intro 1700ms cubic-bezier(.22,.61,.36,1) forwards;
+  }
+  &__level-intro-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .35em;
+    text-transform: uppercase;
+    color: rgba(255, 200, 140, .85);
+    margin-bottom: 8px;
+    text-shadow: 0 4px 18px rgba(255, 150, 60, .55);
+  }
+  &__level-intro-name {
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    font-size: clamp(40px, 11vw, 70px);
+    font-weight: 900;
+    letter-spacing: .08em;
+    line-height: 1;
+    background: linear-gradient(180deg, #fff2d6 0%, #ffd28a 70%, #cd8e54 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 8px 24px rgba(255, 150, 60, .45));
+    margin-bottom: 14px;
+  }
+  &__level-intro-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: rgba(200, 220, 240, .60);
+  }
+
+  // Level cleared — between-level overlay
+  &__level-clear {
+    position: absolute;
+    inset: 0;
+    z-index: 16;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: radial-gradient(60% 60% at 50% 50%, rgba(40, 90, 140, .55) 0%, rgba(8, 12, 22, .92) 80%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: ln-clear-fade 1900ms ease-out forwards;
+  }
+  &__level-clear-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .35em;
+    color: rgba(170, 220, 255, .85);
+    margin-bottom: 12px;
+  }
+  &__level-clear-bonus {
+    font-family: 'Baloo 2', sans-serif;
+    font-size: 80px;
+    font-weight: 800;
+    line-height: 1;
+    color: transparent;
+    background: linear-gradient(180deg, #b8e8ff 0%, #5aa8ff 70%, #2a78c8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 8px 24px rgba(90, 168, 255, .35));
+  }
+  &__level-clear-total {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .30em;
+    color: rgba(220, 235, 250, .80);
+    margin: 18px 0 14px;
+  }
+  &__level-clear-next {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .25em;
+    color: rgba(180, 200, 220, .55);
+  }
+
+  // Victory screen — final-level cleared
+  &__victory {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: radial-gradient(80% 80% at 50% 30%, rgba(255, 180, 80, .35) 0%, rgba(20, 12, 8, .94) 80%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-align: center;
+  }
+  &__victory-eyebrow {
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: .45em;
+    color: #ffd28a;
+    margin-bottom: 18px;
+    text-shadow: 0 4px 18px rgba(255, 150, 60, .55);
+  }
+
   &__watermark {
     position: absolute;
     left: 16px;
@@ -320,4 +482,20 @@
 @keyframes ln-fog-breath {
   0%   { transform: scale(.88); }
   100% { transform: scale(1.18); }
+}
+@keyframes ln-urgent-pulse {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+@keyframes ln-level-intro {
+  0%   { opacity: 0; transform: translateY(8px); }
+  20%  { opacity: 1; transform: translateY(0); }
+  78%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes ln-clear-fade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
 }

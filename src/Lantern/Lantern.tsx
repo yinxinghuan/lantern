@@ -3,8 +3,9 @@ import { Canvas } from '@react-three/fiber';
 import { Leaderboard, useGameScore } from '@shared/leaderboard';
 import { Scene } from './components/Scene';
 import { SplashScene } from './components/SplashScene';
-import { createGameState } from './hooks/useGameLoop';
+import { createGameState, startLevel } from './hooks/useGameLoop';
 import type { PickupKind, SfxKey } from './hooks/useGameLoop';
+import { getLevelTuning, LEVELS } from './constants';
 import { useJoystick } from './hooks/useJoystick';
 import { playSfx, setHeartbeatRate, startBgm, stopBgm, stopHeartbeat, unlockAudio } from './utils/audio';
 import { t } from './i18n';
@@ -35,7 +36,7 @@ const PICKUP_INFO: Record<PickupKind, { headline: string; sub: string }> = {
 export function Lantern() {
   const [phase, setPhase] = useState<Phase>('splash');
   const [score, setScore] = useState(0);
-  const [depth, setDepth] = useState(0);
+  const [, setDepth] = useState(0);
   const [lightRadius, setLightRadius] = useState(0);
   const [highScore, setHighScore] = useState<number>(() => Number(localStorage.getItem(HIGH_KEY) || 0));
   const [finalScore, setFinalScore] = useState(0);
@@ -43,6 +44,14 @@ export function Lantern() {
   const [pellets, setPellets] = useState<Pellet[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [hitFlashKey, setHitFlashKey] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [timeLeft, setTimeLeft] = useState(0);
+  // Level intro overlay — appears briefly at the start of every level.
+  const [levelTitle, setLevelTitle] = useState<{ level: number; name: string; key: number } | null>(null);
+  // Level-clear overlay shown between levels with score bonus.
+  const [clearOverlay, setClearOverlay] = useState<{ level: number; bonus: number; total: number } | null>(null);
+  // Victory overlay shown after the final level is cleared.
+  const [victory, setVictory] = useState(false);
 
   const stateRef = useRef(createGameState());
   const { stickRef, view } = useJoystick(phase === 'playing');
@@ -92,23 +101,74 @@ export function Lantern() {
     submitScore(final).catch(() => { /* silent */ });
   }, [highScore, submitScore]);
 
+  const showLevelTitle = useCallback((lvl: number) => {
+    const tuning = getLevelTuning(lvl);
+    setLevelTitle({ level: lvl, name: tuning.name, key: Date.now() });
+    window.setTimeout(() => setLevelTitle(null), 1700);
+  }, []);
+
   const start = useCallback(() => {
     // CRITICAL: set the playing phase synchronously BEFORE touching audio.
-    // Previously we awaited unlockAudio() first, which on some mobile
-    // browsers (iOS Safari especially) never resolves if the AudioContext
-    // is in a weird state — the await would hang and the game never started.
     stateRef.current = createGameState();
     setScore(0);
     setDepth(0);
     setLightRadius(3);
+    setLevel(1);
+    setTimeLeft(getLevelTuning(1).timeLimit);
     setPellets([]);
     setBanners([]);
+    setClearOverlay(null);
+    setVictory(false);
     setPhase('playing');
+    showLevelTitle(1);
     // Fire-and-forget audio init. If it fails or hangs, gameplay still works.
     unlockAudio().then(() => startBgm(0.18)).catch(() => { /* silent */ });
-  }, []);
+  }, [showLevelTitle]);
 
   useEffect(() => () => { stopBgm(); stopHeartbeat(); }, []);
+
+  // Level state polling — drives the time-remaining HUD, the level-cleared
+  // overlay between levels, and the victory state after the final level.
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    let transitioning = false;
+    const id = window.setInterval(() => {
+      const d = stateRef.current;
+      const tuning = getLevelTuning(d.level);
+      // Update the time-remaining read.
+      setTimeLeft(Math.max(0, tuning.timeLimit - d.levelT));
+      setLevel(d.level);
+
+      // Level cleared → show the inter-level overlay and queue the next.
+      if (d.levelCleared && !transitioning) {
+        transitioning = true;
+        const timeBonus = Math.max(0, Math.floor((tuning.timeLimit - d.levelT) * 5));
+        const levelBonus = 100 * d.level;
+        const total = Math.floor(d.score);
+
+        if (d.victory) {
+          // Final level cleared — show victory screen.
+          setVictory(true);
+          stopBgm();
+          setFinalScore(total);
+          submitScore(total).catch(() => { /* silent */ });
+          if (total > highScore) {
+            localStorage.setItem(HIGH_KEY, String(total));
+            setHighScore(total);
+          }
+        } else {
+          setClearOverlay({ level: d.level, bonus: levelBonus + timeBonus, total });
+          window.setTimeout(() => {
+            setClearOverlay(null);
+            startLevel(d, d.level + 1);
+            showLevelTitle(d.level);
+            transitioning = false;
+          }, 1900);
+        }
+      }
+    }, 150);
+    return () => window.clearInterval(id);
+  }, [phase, highScore, submitScore, showLevelTitle]);
 
   // Drive heartbeat tempo from monster proximity. Polls 4× per second —
   // cheap, doesn't need frame-perfect sync because the audible change is
@@ -181,13 +241,21 @@ export function Lantern() {
               <span className="ln__topbar-caption">SCORE</span>
             </div>
             <div className="ln__topbar-mid">
-              <span className="ln__topbar-num ln__topbar-num--small">{depth}</span>
-              <span className="ln__topbar-caption">DEPTH</span>
+              <span className={`ln__topbar-num ln__topbar-num--small${timeLeft < 15 ? ' ln__topbar-num--urgent' : ''}`}>
+                {Math.ceil(timeLeft)}s
+              </span>
+              <span className="ln__topbar-caption">TIME</span>
             </div>
             <div className="ln__topbar-cell ln__topbar-cell--right">
               <span className="ln__topbar-num ln__topbar-num--small">{lightRadius.toFixed(1)}</span>
               <span className="ln__topbar-caption">LANTERN</span>
             </div>
+          </div>
+          {/* Level pill — sits under the topbar so the player always knows
+              where they are in the run. */}
+          <div className="ln__level-pill">
+            <span className="ln__level-pill-num">L{level}</span>
+            <span className="ln__level-pill-name">{getLevelTuning(level).name}</span>
           </div>
         </div>
       )}
@@ -240,13 +308,47 @@ export function Lantern() {
 
       {phase === 'splash' && <SplashScene onStart={start} highScore={highScore} />}
 
-      {phase === 'gameover' && (
+      {/* Level intro — brief overlay at start of each level */}
+      {phase === 'playing' && levelTitle && (
+        <div className="ln__level-intro" key={levelTitle.key}>
+          <div className="ln__level-intro-num">LEVEL {levelTitle.level}</div>
+          <div className="ln__level-intro-name">{levelTitle.name}</div>
+          <div className="ln__level-intro-sub">FIND THE EXIT STONE</div>
+        </div>
+      )}
+
+      {/* Level cleared — between-level overlay */}
+      {phase === 'playing' && clearOverlay && (
+        <div className="ln__level-clear">
+          <div className="ln__level-clear-eyebrow">LEVEL {clearOverlay.level} CLEARED</div>
+          <div className="ln__level-clear-bonus">+{clearOverlay.bonus}</div>
+          <div className="ln__level-clear-total">TOTAL · {clearOverlay.total}</div>
+          <div className="ln__level-clear-next">Descending deeper…</div>
+        </div>
+      )}
+
+      {/* Victory — shown after the final level is cleared */}
+      {phase === 'playing' && victory && (
+        <div className="ln__victory">
+          <div className="ln__victory-eyebrow">YOU MADE IT OUT</div>
+          <div className="ln__final-score">{finalScore}</div>
+          <div className="ln__final">CLEARED ALL {LEVELS.length} LEVELS</div>
+          <button className="ln__cta" onPointerDown={start}>
+            {t('again')}
+          </button>
+          <button className="ln__leaderboard-btn" onPointerDown={() => setShowLeaderboard(true)}>
+            {t('leaderboard')}
+          </button>
+        </div>
+      )}
+
+      {phase === 'gameover' && !victory && (
         <div className="ln__gameover">
           <div className="ln__gameover-eyebrow">
             {finalScore > 0 && finalScore === highScore ? 'NEW RECORD' : 'THE DARK TOOK YOU'}
           </div>
           <div className="ln__final-score">{finalScore}</div>
-          <div className="ln__final">DEPTH {depth} · LANTERN {lightRadius.toFixed(1)}</div>
+          <div className="ln__final">FAILED ON LEVEL {level} · {getLevelTuning(level).name.toUpperCase()}</div>
           <button className="ln__cta" onPointerDown={start}>
             {t('again')}
           </button>

@@ -866,6 +866,66 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
   );
 }
 
+// Exit stone — the level goal. Tall obelisk made of a glowing crystal
+// shaft, two stacked rings, and a beacon column rising to the ceiling so
+// the player can spot it from far away. Pulses + rotates to grab attention.
+function Exit({ state }: { state: React.MutableRefObject<GameRef> }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const beaconMat = useRef<THREE.MeshBasicMaterial>(null);
+  const haloMat = useRef<THREE.MeshBasicMaterial>(null);
+  const lightRef = useRef<THREE.PointLight>(null);
+  useFrame(({ clock }) => {
+    const d = state.current;
+    const ex = d.exit;
+    if (!groupRef.current) return;
+    if (!ex) { groupRef.current.visible = false; return; }
+    groupRef.current.visible = true;
+    groupRef.current.position.copy(ex.position);
+    const t = clock.getElapsedTime();
+    groupRef.current.rotation.y = t * 0.6;
+    const pulse = 0.7 + Math.sin(t * 2.4) * 0.30;
+    if (beaconMat.current) beaconMat.current.opacity = 0.18 + pulse * 0.22;
+    if (haloMat.current)   haloMat.current.opacity   = 0.30 + pulse * 0.40;
+    if (lightRef.current)  lightRef.current.intensity = 14 + pulse * 10;
+  });
+  return (
+    <group ref={groupRef}>
+      {/* Base ring on the floor — wider glow halo */}
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.9, 1.9, 48]} />
+        <meshBasicMaterial ref={haloMat} color="#a8e6ff" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {/* Inner pedestal */}
+      <mesh position={[0, 0.12, 0]} castShadow>
+        <cylinderGeometry args={[0.65, 0.85, 0.22, 18]} />
+        <meshStandardMaterial color="#2a3848" roughness={1} />
+      </mesh>
+      {/* Lower ring (suspended) */}
+      <mesh position={[0, 0.55, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.42, 0.04, 8, 22]} />
+        <meshStandardMaterial color="#7accff" emissive="#5aa8ff" emissiveIntensity={1.6} />
+      </mesh>
+      {/* Tall crystal obelisk in the middle */}
+      <mesh position={[0, 1.10, 0]} castShadow>
+        <octahedronGeometry args={[0.42, 0]} />
+        <meshStandardMaterial color="#bce8ff" emissive="#5aa8ff" emissiveIntensity={2.5} roughness={0.2} metalness={0.6} />
+      </mesh>
+      {/* Upper ring */}
+      <mesh position={[0, 1.70, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.36, 0.035, 8, 20]} />
+        <meshStandardMaterial color="#7accff" emissive="#5aa8ff" emissiveIntensity={1.6} />
+      </mesh>
+      {/* Beacon column going up — visible above pillars */}
+      <mesh position={[0, 4.0, 0]}>
+        <cylinderGeometry args={[0.12, 0.20, 7.0, 12, 1, true]} />
+        <meshBasicMaterial ref={beaconMat} color="#bce8ff" transparent opacity={0.25} side={THREE.DoubleSide} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {/* Point light at the stone — bright cool blue beacon */}
+      <pointLight ref={lightRef} position={[0, 1.0, 0]} color="#9fd6ff" intensity={20} distance={9} decay={2} />
+    </group>
+  );
+}
+
 export function Scene(props: SceneProps) {
   const { state, playing, stickRef } = props;
   useGameLoop({
@@ -922,6 +982,7 @@ export function Scene(props: SceneProps) {
       <Crystals state={state} />
       <CrystalLights state={state} />
       <Walls state={state} />
+      <Exit state={state} />
       <Player state={state} />
       <Monsters state={state} />
     </>
