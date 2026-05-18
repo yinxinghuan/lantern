@@ -278,6 +278,66 @@ function Crystals({ state }: { state: React.MutableRefObject<GameRef> }) {
   );
 }
 
+// A fixed pool of N PointLights that get assigned each frame to the N
+// nearest visible crystals. Gives the cave a multi-source "stage-light"
+// quality (like DJ Disco) without per-crystal lights — keeps GPU cost
+// predictable. No shadows because mobile would choke.
+function CrystalLights({ state }: { state: React.MutableRefObject<GameRef> }) {
+  const POOL = 4;
+  const refs = useRef<(THREE.PointLight | null)[]>([]);
+  const tmpVec = useMemo(() => new THREE.Vector3(), []);
+  useFrame(() => {
+    const d = state.current;
+    if (d.crystals.length === 0) {
+      for (const l of refs.current) if (l) l.intensity = 0;
+      return;
+    }
+    // Sort crystals by distance² to player (cheap — typical N is ~18-26)
+    const sorted = d.crystals
+      .map(c => ({
+        c,
+        d2: (c.position.x - d.pos.x) ** 2 + (c.position.z - d.pos.z) ** 2,
+      }))
+      .sort((a, b) => a.d2 - b.d2)
+      .slice(0, POOL);
+
+    for (let i = 0; i < POOL; i++) {
+      const light = refs.current[i];
+      if (!light) continue;
+      const entry = sorted[i];
+      if (!entry) { light.intensity = 0; continue; }
+      const c = entry.c;
+      tmpVec.set(c.position.x, 0.5, c.position.z);
+      light.position.copy(tmpVec);
+      light.color.set(
+        c.type === 'red'   ? '#ff2a3a' :
+        c.type === 'green' ? '#48ff80' :
+        c.type === 'blue'  ? '#5aa8ff' :
+                             '#ffd64a'
+      );
+      // Fade with distance² so distant crystals contribute less while
+      // still being visually anchored when nearby.
+      const distFalloff = Math.max(0.2, 1 - entry.d2 / 200);
+      light.intensity = 14 * distFalloff;
+      light.distance = 8;
+    }
+  });
+  return (
+    <>
+      {Array.from({ length: POOL }).map((_, i) => (
+        <pointLight
+          key={i}
+          ref={el => { refs.current[i] = el; }}
+          color="#ffffff"
+          intensity={0}
+          distance={8}
+          decay={2}
+        />
+      ))}
+    </>
+  );
+}
+
 // Cave pillars / stalagmites. Three variants (spike / dome / cluster) so the
 // arena reads as a varied cave rather than a forest of identical cones —
 // gives the player landmarks to track their position between sweeps.
@@ -343,11 +403,14 @@ function Pillars({ state }: { state: React.MutableRefObject<GameRef> }) {
 // the player carries being the only living flame.
 function Altar() {
   const ashMat = useRef<THREE.MeshStandardMaterial>(null);
+  const altarLightRef = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
-    if (ashMat.current) {
-      const t = clock.getElapsedTime();
-      ashMat.current.emissiveIntensity = 0.55 + Math.sin(t * 0.7) * 0.18;
-    }
+    const t = clock.getElapsedTime();
+    const pulse = 0.55 + Math.sin(t * 0.7) * 0.18;
+    if (ashMat.current) ashMat.current.emissiveIntensity = pulse;
+    // Faint cool-blue point light at the bowl — gives the altar its own
+    // pool of illumination, breaks the single-warm-source monotony.
+    if (altarLightRef.current) altarLightRef.current.intensity = 8 + pulse * 6;
   });
   return (
     <group position={[0, 0, 0]}>
@@ -371,6 +434,15 @@ function Altar() {
         <circleGeometry args={[0.85, 24]} />
         <meshStandardMaterial ref={ashMat} color="#3a4e5a" emissive="#5e8aa8" emissiveIntensity={0.55} roughness={1} />
       </mesh>
+      {/* point light embedded in the bowl — no shadow (perf) */}
+      <pointLight
+        ref={altarLightRef}
+        position={[0, 0.55, 0]}
+        color="#7eaee0"
+        intensity={11}
+        distance={7}
+        decay={2}
+      />
     </group>
   );
 }
@@ -462,6 +534,8 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
   const tendrilRefs = useRef<Map<number, THREE.Mesh>>(new Map());
   const tendrilMats = useRef<Map<number, THREE.MeshStandardMaterial>>(new Map());
+  const tendrilTipRefs = useRef<Map<number, THREE.Mesh>>(new Map());
+  const tendrilTipMats = useRef<Map<number, THREE.MeshBasicMaterial>>(new Map());
   const ringRefs = useRef<Map<number, THREE.Mesh>>(new Map());
   const ringMats = useRef<Map<number, THREE.MeshBasicMaterial>>(new Map());
   const eyeMats = useRef<Map<number, [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial]>>(new Map());
@@ -487,22 +561,40 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
       const phase = striking ? m.strikeT / MONSTER_STRIKE_TELEGRAPH : 0;
       const live = striking && m.strikeT >= MONSTER_STRIKE_TELEGRAPH;
 
-      // Tendril
+      // Tendril — a tapered cone lying horizontally along the strike
+      // direction (monster-local +Z, since the monster faces the player
+      // and rotation is frozen during the strike). The cone tapers from
+      // a wide base at the monster to a narrow tip at the strike target —
+      // direction is unambiguous, like an arrow. Bright red tip ball
+      // marks "the bit that grabs you".
       const tendril = tendrilRefs.current.get(m.id);
       const tMat = tendrilMats.current.get(m.id);
+      const tip = tendrilTipRefs.current.get(m.id);
+      const tipMat = tendrilTipMats.current.get(m.id);
       if (tendril && tMat) {
         tendril.visible = striking;
         if (striking) {
           const reach = live
             ? MONSTER_STRIKE_RANGE_MAX
             : Math.min(1, phase) * MONSTER_STRIKE_RANGE_MAX;
-          const ax = m.strikeAimX;
-          const az = m.strikeAimZ;
-          tendril.position.set(ax * reach * 0.5, 0.65, az * reach * 0.5);
-          tendril.rotation.set(0, Math.atan2(ax, az), 0);
-          // Thicker tendril (0.15 → 0.22) so it's easier to spot in the dark.
-          tendril.scale.set(0.22, reach, 0.22);
-          tMat.emissiveIntensity = live ? 4.0 : 1.2 + phase * 2.4;
+          // Place the cone in monster-local space: midpoint along +Z,
+          // tilted so its long axis runs along +Z, scaled by reach.
+          tendril.position.set(0, 0.65, reach * 0.5);
+          tendril.rotation.set(Math.PI / 2, 0, 0);
+          tendril.scale.set(0.30, reach, 0.30);
+          tMat.emissiveIntensity = live ? 4.5 : 1.4 + phase * 2.6;
+        }
+      }
+      if (tip && tipMat) {
+        tip.visible = striking;
+        if (striking) {
+          const reach = live
+            ? MONSTER_STRIKE_RANGE_MAX
+            : Math.min(1, phase) * MONSTER_STRIKE_RANGE_MAX;
+          tip.position.set(0, 0.65, reach);
+          const tipPulse = 1 + Math.sin(t * 16) * 0.25;
+          tip.scale.setScalar(tipPulse);
+          tipMat.opacity = live ? 1.0 : 0.55 + phase * 0.45;
         }
       }
 
@@ -608,9 +700,10 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
             <ringGeometry args={[0.95, 1.15, 32]} />
             <meshBasicMaterial color="#ff3838" transparent opacity={0.6} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
           </mesh>
-          {/* dark-hand tendril — appears during 'striking' state, scale along
-              local Y is set per-frame to grow from 0 → full reach. Red-hot
-              emissive so it pops against the cave's cool periphery. */}
+          {/* dark-hand tendril — tapered cone laid horizontally along the
+              monster's local +Z (= strike direction). Wide at the monster
+              (base) → narrow at the strike target (tip), so direction is
+              read-instantly. */}
           <mesh
             ref={el => {
               if (el) {
@@ -623,8 +716,28 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
             }}
             visible={false}
           >
-            <cylinderGeometry args={[1, 1, 1, 8]} />
-            <meshStandardMaterial color="#1a0008" emissive="#ff3030" emissiveIntensity={1.4} transparent opacity={0.92} />
+            {/* base radius wide (1.0), tip radius narrow via the geometry's
+                second arg... wait, ConeGeometry doesn't taper to a custom tip.
+                Use CylinderGeometry with different top/bottom radii instead. */}
+            <cylinderGeometry args={[0.15, 1.0, 1, 10]} />
+            <meshStandardMaterial color="#1a0008" emissive="#ff3838" emissiveIntensity={1.4} transparent opacity={0.92} />
+          </mesh>
+          {/* Bright-red glowing claw tip at the strike's landing point —
+              the player should look at THIS dot, not the body, to dodge. */}
+          <mesh
+            ref={el => {
+              if (el) {
+                tendrilTipRefs.current.set(m.id, el);
+                tendrilTipMats.current.set(m.id, el.material as THREE.MeshBasicMaterial);
+              } else {
+                tendrilTipRefs.current.delete(m.id);
+                tendrilTipMats.current.delete(m.id);
+              }
+            }}
+            visible={false}
+          >
+            <sphereGeometry args={[0.22, 14, 10]} />
+            <meshBasicMaterial color="#ff6060" transparent opacity={0.95} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
         </group>
       ))}
@@ -686,6 +799,7 @@ export function Scene(props: SceneProps) {
       <WallEdges />
       <Pillars state={state} />
       <Crystals state={state} />
+      <CrystalLights state={state} />
       <Walls state={state} />
       <Player state={state} />
       <Monsters state={state} />
