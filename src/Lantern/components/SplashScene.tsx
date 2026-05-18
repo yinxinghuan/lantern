@@ -163,7 +163,7 @@ export function SplashScene({ onStart, highScore }: { onStart: () => void; highS
             <span className="ln-splash__rule-label" style={{ color: '#ffd64a' }}>+10</span>
             <span className="ln-splash__rule-label" style={{ color: '#ff8c6a' }}>LANTERN+</span>
             <span className="ln-splash__rule-label" style={{ color: '#7cff9e' }}>STRONG 5s</span>
-            <span className="ln-splash__rule-label" style={{ color: '#8ec0ff' }}>WALL 5s</span>
+            <span className="ln-splash__rule-label" style={{ color: '#8ec0ff' }}>REPEL 5s</span>
           </div>
           <div className="ln-splash__rules-warn">
             DARK HANDS REACH FROM BEYOND THE LIGHT

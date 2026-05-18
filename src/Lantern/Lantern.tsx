@@ -16,17 +16,20 @@ type Phase = 'splash' | 'playing' | 'gameover';
 
 const HIGH_KEY = 'lantern_high';
 
-interface Pellet { id: number; kind: PickupKind; value: number; dx: number; dy: number; }
+interface Pellet { id: number; value: number; kind: PickupKind; dx: number; dy: number; }
+interface Banner { id: number; kind: PickupKind; }
 
 let pelletIdCounter = 1;
+let bannerIdCounter = 1;
 
-// One-line description of each pickup's effect — teaches the mechanic by
-// showing what just happened, in plain English, on top of the score amount.
-const PICKUP_LABEL: Record<PickupKind, string> = {
-  gold:  'GOLD',
-  red:   'LANTERN +0.5',
-  green: 'STRONG LIGHT 5s',
-  blue:  'WALL · 5s',
+// Two-line description shown in the top banner — headline (what just
+// happened) + subtext (the mechanical effect). Long enough to be readable
+// in 2 seconds, short enough to fit on a phone width.
+const PICKUP_INFO: Record<PickupKind, { headline: string; sub: string }> = {
+  gold:  { headline: 'GOLD',           sub: 'Score +10' },
+  red:   { headline: 'LANTERN GROWS',  sub: '+0.5 reach · permanent' },
+  green: { headline: 'STRONG LIGHT',   sub: 'Reach ×2 · 5 seconds' },
+  blue:  { headline: 'REPEL ZONE',     sub: 'Pushes monsters · 5 seconds' },
 };
 
 export function Lantern() {
@@ -38,6 +41,7 @@ export function Lantern() {
   const [finalScore, setFinalScore] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [pellets, setPellets] = useState<Pellet[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [hitFlashKey, setHitFlashKey] = useState(0);
 
   const stateRef = useRef(createGameState());
@@ -56,15 +60,21 @@ export function Lantern() {
   const onDepth = useCallback((d: number) => setDepth(d), []);
   const onLightRadius = useCallback((r: number) => setLightRadius(r), []);
 
-  // Floating "+N" pellet feedback. Camera follows the player so pickups
-  // always happen near screen-center — render pellets there with a small
-  // random offset to avoid stacking on rapid pickups.
+  // Two-channel pickup feedback:
+  //   • Center pellet (~600ms): just "+N" near the player for instant
+  //     "score went up" satisfaction
+  //   • Top banner (~2.2s): full effect description with crystal icon so
+  //     the player has time to read what the pickup actually did
   const onPickup = useCallback((kind: PickupKind, value: number) => {
-    const id = pelletIdCounter++;
+    const pid = pelletIdCounter++;
     const dx = (Math.random() - 0.5) * 60;
     const dy = (Math.random() - 0.5) * 30;
-    setPellets(prev => [...prev, { id, kind, value, dx, dy }]);
-    window.setTimeout(() => setPellets(prev => prev.filter(p => p.id !== id)), 800);
+    setPellets(prev => [...prev, { id: pid, kind, value, dx, dy }]);
+    window.setTimeout(() => setPellets(prev => prev.filter(p => p.id !== pid)), 700);
+
+    const bid = bannerIdCounter++;
+    setBanners(prev => [...prev, { id: bid, kind }]);
+    window.setTimeout(() => setBanners(prev => prev.filter(b => b.id !== bid)), 2200);
   }, []);
 
   const onStrikeHit = useCallback(() => {
@@ -92,6 +102,7 @@ export function Lantern() {
     setDepth(0);
     setLightRadius(3);
     setPellets([]);
+    setBanners([]);
     setPhase('playing');
     // Fire-and-forget audio init. If it fails or hangs, gameplay still works.
     unlockAudio().then(() => startBgm(0.18)).catch(() => { /* silent */ });
@@ -182,9 +193,7 @@ export function Lantern() {
       )}
       {showCanvas && <img className="ln__watermark" src={alteruSvg} alt="AlterU" />}
 
-      {/* Floating "+N" pickup pellets — anchored near screen center because
-          the follow camera keeps the player there. Color per crystal type.
-          The second line teaches the mechanic ("LANTERN +0.5", etc). */}
+      {/* Floating "+N" — instant satisfaction near the player */}
       {phase === 'playing' && pellets.length > 0 && (
         <div className="ln__pellets">
           {pellets.map(p => (
@@ -193,10 +202,28 @@ export function Lantern() {
               className={`ln__pellet ln__pellet--${p.kind}`}
               style={{ left: `${p.dx}px`, top: `${p.dy}px` }}
             >
-              <span className="ln__pellet-amount">+{p.value}</span>
-              <span className="ln__pellet-label">{PICKUP_LABEL[p.kind]}</span>
+              +{p.value}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pickup effect banner — slides in below the HUD, holds for ~1.6s,
+          fades out. Tells the player what the pickup actually does. */}
+      {phase === 'playing' && banners.length > 0 && (
+        <div className="ln__banners">
+          {banners.map((b, i) => {
+            const info = PICKUP_INFO[b.kind];
+            return (
+              <div key={b.id} className={`ln__banner ln__banner--${b.kind}`} style={{ marginTop: i === 0 ? 0 : 4 }}>
+                <span className="ln__banner-dot" />
+                <div className="ln__banner-text">
+                  <span className="ln__banner-headline">{info.headline}</span>
+                  <span className="ln__banner-sub">{info.sub}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -537,8 +537,22 @@ function WallEdges() {
 }
 
 // Wall pulses from blue-crystal pickups — short-lived glowing pillars
+// Repel walls — placed by the blue crystal pickup. Pushes monsters out of
+// a ~2.1u radius for 5 seconds. The visuals make the AFFECT zone visible
+// (outer pulsing ring) and react to actual pushes (core flares when
+// monsters are being repelled), so the player sees the wall doing work.
+const WALL_PUSH_RADIUS = WALL_RADIUS + 0.6; // 2.1u — matches game loop
+
+interface WallVisRefs {
+  group: THREE.Group;
+  coreMat: THREE.MeshStandardMaterial | null;
+  innerRingMat: THREE.MeshBasicMaterial | null;
+  outerRingMat: THREE.MeshBasicMaterial | null;
+  shellMat: THREE.MeshBasicMaterial | null;
+}
+
 function Walls({ state }: { state: React.MutableRefObject<GameRef> }) {
-  const refs = useRef<Map<number, { group: THREE.Group; ringMat: THREE.MeshBasicMaterial | null; coreMat: THREE.MeshStandardMaterial | null }>>(new Map());
+  const refs = useRef<Map<number, WallVisRefs>>(new Map());
   const [, force] = useState(0);
   const lastCount = useRef(-1);
   useFrame(() => {
@@ -551,11 +565,35 @@ function Walls({ state }: { state: React.MutableRefObject<GameRef> }) {
       const r = refs.current.get(w.id);
       if (!r) continue;
       const age = d.time - w.bornAt;
-      const t = Math.min(1, age / WALL_DURATION);
+      const tt = Math.min(1, age / WALL_DURATION);
       // Fade out over the last 30% of life
-      const fade = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-      if (r.coreMat) r.coreMat.emissiveIntensity = (0.8 + Math.sin(d.time * 6) * 0.25) * fade;
-      if (r.ringMat) r.ringMat.opacity = 0.6 * fade;
+      const fade = tt < 0.7 ? 1 : 1 - (tt - 0.7) / 0.3;
+
+      // Count monsters currently inside this wall's push zone so the
+      // wall flares brighter when it's actively shoving something —
+      // cause-and-effect feedback for the player.
+      let monstersInRange = 0;
+      for (const m of d.monsters) {
+        const dx = m.position.x - w.position.x;
+        const dz = m.position.z - w.position.z;
+        if (Math.hypot(dx, dz) < WALL_PUSH_RADIUS) monstersInRange++;
+      }
+      const activity = Math.min(1, monstersInRange * 0.6);
+
+      const slowPulse = 0.8 + Math.sin(d.time * 6) * 0.25;
+      const fastPulse = 0.5 + Math.sin(d.time * 10) * 0.5;
+
+      if (r.coreMat) r.coreMat.emissiveIntensity = (slowPulse + activity * 1.6) * fade;
+      if (r.innerRingMat) r.innerRingMat.opacity = (0.65 + activity * 0.30) * fade;
+      // Outer push-zone ring pulses ~1.6Hz; brighter while activity > 0.
+      if (r.outerRingMat) {
+        r.outerRingMat.opacity = (0.22 + fastPulse * 0.18 + activity * 0.40) * fade;
+      }
+      // Translucent shell at push radius — barely visible when idle, glows
+      // when something's bouncing off.
+      if (r.shellMat) {
+        r.shellMat.opacity = (0.06 + activity * 0.18) * fade;
+      }
       r.group.position.copy(w.position);
     }
   });
@@ -566,22 +604,42 @@ function Walls({ state }: { state: React.MutableRefObject<GameRef> }) {
         <group
           key={w.id}
           ref={el => {
-            if (el) {
-              const ringMatRef = (el.children[1] as THREE.Mesh | undefined)?.material as THREE.MeshBasicMaterial | undefined;
-              const coreMatRef = (el.children[0] as THREE.Mesh | undefined)?.material as THREE.MeshStandardMaterial | undefined;
-              refs.current.set(w.id, { group: el, ringMat: ringMatRef ?? null, coreMat: coreMatRef ?? null });
-            } else {
-              refs.current.delete(w.id);
-            }
+            if (!el) { refs.current.delete(w.id); return; }
+            // Order in children must match the JSX below.
+            const core = (el.children[0] as THREE.Mesh | undefined)?.material as THREE.MeshStandardMaterial | undefined;
+            const shell = (el.children[1] as THREE.Mesh | undefined)?.material as THREE.MeshBasicMaterial | undefined;
+            const innerRing = (el.children[2] as THREE.Mesh | undefined)?.material as THREE.MeshBasicMaterial | undefined;
+            const outerRing = (el.children[3] as THREE.Mesh | undefined)?.material as THREE.MeshBasicMaterial | undefined;
+            refs.current.set(w.id, {
+              group: el,
+              coreMat: core ?? null,
+              shellMat: shell ?? null,
+              innerRingMat: innerRing ?? null,
+              outerRingMat: outerRing ?? null,
+            });
           }}
         >
-          <mesh position={[0, 1.1, 0]} castShadow>
-            <cylinderGeometry args={[WALL_RADIUS * 0.65, WALL_RADIUS * 0.75, 2.2, 18]} />
-            <meshStandardMaterial color="#3a6ed6" emissive="#5aa8ff" emissiveIntensity={0.8} transparent opacity={0.85} />
+          {/* core pillar */}
+          <mesh position={[0, 1.0, 0]} castShadow>
+            <cylinderGeometry args={[WALL_RADIUS * 0.55, WALL_RADIUS * 0.7, 2.0, 16]} />
+            <meshStandardMaterial color="#3a6ed6" emissive="#5aa8ff" emissiveIntensity={0.9} transparent opacity={0.90} />
           </mesh>
+          {/* push-zone shell — translucent cylinder at the actual repel
+              radius. Mostly invisible; brightens when something is in it. */}
+          <mesh position={[0, 1.0, 0]}>
+            <cylinderGeometry args={[WALL_PUSH_RADIUS, WALL_PUSH_RADIUS, 2.2, 28, 1, true]} />
+            <meshBasicMaterial color="#a0d4ff" transparent opacity={0.06} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+          </mesh>
+          {/* inner floor ring — at the visible pillar's base */}
+          <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[WALL_RADIUS * 0.78, WALL_RADIUS, 40]} />
+            <meshBasicMaterial color="#7accff" transparent opacity={0.65} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+          {/* outer push-zone floor ring — pulses + brightens with activity.
+              This is the player's "this is the repel zone" indicator. */}
           <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[WALL_RADIUS * 0.85, WALL_RADIUS, 36]} />
-            <meshBasicMaterial color="#7accff" transparent opacity={0.6} depthWrite={false} blending={THREE.AdditiveBlending} />
+            <ringGeometry args={[WALL_PUSH_RADIUS - 0.10, WALL_PUSH_RADIUS, 56]} />
+            <meshBasicMaterial color="#bce4ff" transparent opacity={0.30} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
         </group>
       ))}
