@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { RoundedBox } from '@react-three/drei';
 import {
   CAMERA_FOV, CAMERA_POS, ARENA_HALF,
+  PLAYER_SPEED,
   WALL_RADIUS, WALL_DURATION,
   MONSTER_STRIKE_RANGE_MAX, MONSTER_STRIKE_TELEGRAPH,
 } from '../constants';
@@ -65,6 +66,15 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
     groupRef.current.position.copy(d.pos);
     groupRef.current.rotation.y = d.rot;
     const t = clock.getElapsedTime();
+
+    // Body life: slow chest-breathing when idle, faster jog-bounce when
+    // moving, blended by speed so the transition is smooth. Plus a tiny
+    // side-to-side lean while walking to sell the gait.
+    const moveFactor = Math.min(1, d.speed / PLAYER_SPEED);
+    const idleBob = Math.sin(t * 1.8) * 0.04;
+    const walkBob = Math.abs(Math.sin(t * 9)) * 0.12;
+    groupRef.current.position.y = idleBob * (1 - moveFactor) + walkBob * moveFactor;
+    groupRef.current.rotation.z = Math.sin(t * 9) * 0.07 * moveFactor;
     // Two-band flicker — wider amplitude than before so the breath reads
     // clearly. Range approximately [0.65, 1.35] on the slow band.
     //   • slow sinusoid (~5.5s period) → the lantern's "breath"
