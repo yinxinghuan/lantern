@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { RoundedBox } from '@react-three/drei';
 import {
   CAMERA_FOV, CAMERA_POS, ARENA_HALF,
   PLAYER_SPEED,
@@ -114,7 +113,7 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
           from d.pos to monster — matches what the player visually sees. */}
       <pointLight
         ref={lanternLightRef}
-        position={[0.46, 0.85, 0.50]}
+        position={[0.08, 0.85, 0.55]}
         color="#ff9a3a"
         intensity={LANTERN_BASE_INTENSITY}
         distance={LANTERN_BASE_DISTANCE}
@@ -127,48 +126,102 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         shadow-camera-near={0.3}
         shadow-camera-far={20}
       />
-      {/* The body — everything inside this group hops together */}
+      {/* Hooded explorer — robe + pointed hood with a dark face void and
+          two warm-glow eyes peering out. The hood + tapered robe give a
+          clean silhouette from the top-down view. */}
       <group ref={bounceRef}>
-        {/* lower body */}
-        <RoundedBox args={[0.55, 0.55, 0.45]} radius={0.16} smoothness={5} position={[0, 0.35, 0]} castShadow>
-          <meshStandardMaterial color="#3c2b1f" roughness={0.9} />
-        </RoundedBox>
-        {/* coat */}
-        <RoundedBox args={[0.7, 0.7, 0.5]} radius={0.20} smoothness={5} position={[0, 0.95, 0]} castShadow>
-          <meshStandardMaterial color="#5a4030" roughness={0.85} />
-        </RoundedBox>
-        {/* head */}
-        <mesh position={[0, 1.45, 0]} castShadow>
-          <sphereGeometry args={[0.22, 16, 12]} />
-          <meshStandardMaterial color="#d6b69a" roughness={0.8} />
+        {/* Robe lower — tapered cylinder, wider at the ground so it reads
+            as a flowing skirt rather than a box stack. */}
+        <mesh position={[0, 0.40, 0]} castShadow>
+          <cylinderGeometry args={[0.34, 0.55, 0.80, 12]} />
+          <meshStandardMaterial color="#3a2820" roughness={0.95} />
         </mesh>
-        {/* hat */}
-        <mesh position={[0, 1.66, -0.04]} castShadow>
-          <coneGeometry args={[0.26, 0.30, 18]} />
-          <meshStandardMaterial color="#2a1a12" roughness={0.9} />
+        {/* Robe upper — narrower torso section */}
+        <mesh position={[0, 1.00, 0]} castShadow>
+          <cylinderGeometry args={[0.30, 0.38, 0.40, 12]} />
+          <meshStandardMaterial color="#4a3526" roughness={0.9} />
         </mesh>
-        {/* lantern stick + lantern body — visually attached to the
-            hopping body, even though the actual PointLight stays outside */}
-        <mesh position={[0.30, 1.05, 0.30]} rotation={[0.6, 0, -0.4]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.7, 8]} />
-          <meshStandardMaterial color="#2a1a10" />
+        {/* Belt */}
+        <mesh position={[0, 0.78, 0]} castShadow rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.40, 0.045, 8, 18]} />
+          <meshStandardMaterial color="#1a1006" roughness={0.95} />
         </mesh>
-        <mesh position={[0.46, 0.85, 0.50]}>
-          <boxGeometry args={[0.22, 0.30, 0.22]} />
-          <meshStandardMaterial color="#1a1410" />
+        {/* Belt pouch — small bulge on the left hip */}
+        <mesh position={[-0.32, 0.72, 0.04]} castShadow>
+          <sphereGeometry args={[0.09, 10, 8]} />
+          <meshStandardMaterial color="#241408" roughness={0.95} />
         </mesh>
-        <mesh position={[0.46, 0.85, 0.50]}>
-          <sphereGeometry args={[0.13, 14, 10]} />
-          <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
+        {/* Shoulder cap — domed top of the robe so the silhouette flows
+            smoothly into the hood, no hard step. */}
+        <mesh position={[0, 1.22, 0]} castShadow>
+          <sphereGeometry args={[0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2.3]} />
+          <meshStandardMaterial color="#3a2820" roughness={0.92} />
         </mesh>
-        {/* feet */}
-        <mesh position={[-0.14, 0.10, 0]} castShadow>
-          <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
-          <meshStandardMaterial color="#1a0e08" />
+        {/* Hood — pointed cone, slightly back-tilted */}
+        <mesh position={[0, 1.50, -0.02]} rotation={[-0.12, 0, 0]} castShadow>
+          <coneGeometry args={[0.27, 0.56, 12]} />
+          <meshStandardMaterial color="#241612" roughness={0.95} />
         </mesh>
-        <mesh position={[0.14, 0.10, 0]} castShadow>
-          <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
-          <meshStandardMaterial color="#1a0e08" />
+        {/* Hood opening — dark void where the face would be */}
+        <mesh position={[0, 1.40, 0.17]} rotation={[0.32, 0, 0]}>
+          <circleGeometry args={[0.15, 16]} />
+          <meshBasicMaterial color="#050304" />
+        </mesh>
+        {/* Glowing eyes — warm orange points peering from the hood,
+            mirroring the lantern color so they read as the SAME light. */}
+        <mesh position={[-0.055, 1.43, 0.205]}>
+          <sphereGeometry args={[0.022, 8, 6]} />
+          <meshStandardMaterial color="#ffd28a" emissive="#ffa040" emissiveIntensity={2.6} />
+        </mesh>
+        <mesh position={[0.055, 1.43, 0.205]}>
+          <sphereGeometry args={[0.022, 8, 6]} />
+          <meshStandardMaterial color="#ffd28a" emissive="#ffa040" emissiveIntensity={2.6} />
+        </mesh>
+
+        {/* Lantern arm — thin stick angled forward + down */}
+        <mesh position={[0.06, 1.02, 0.22]} rotation={[0.95, 0, -0.08]} castShadow>
+          <cylinderGeometry args={[0.022, 0.022, 0.60, 8]} />
+          <meshStandardMaterial color="#1a0e06" roughness={0.95} />
+        </mesh>
+
+        {/* Lantern — proper hexagonal frame with cap, base, hanging ring,
+            and a glowing inner core. Reads as a real prop, not a box. */}
+        <group position={[0.08, 0.85, 0.55]}>
+          {/* Hanging ring above the cap */}
+          <mesh position={[0, 0.27, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[0.025, 0.008, 5, 10]} />
+            <meshStandardMaterial color="#1a1006" roughness={0.85} />
+          </mesh>
+          {/* Top cap — slightly wider hexagonal lid */}
+          <mesh position={[0, 0.20, 0]} castShadow>
+            <cylinderGeometry args={[0.10, 0.13, 0.04, 6]} />
+            <meshStandardMaterial color="#241408" roughness={0.95} />
+          </mesh>
+          {/* Lantern cage — 6-sided open frame */}
+          <mesh castShadow>
+            <cylinderGeometry args={[0.13, 0.13, 0.30, 6, 1, true]} />
+            <meshStandardMaterial color="#1a1006" roughness={0.85} side={THREE.DoubleSide} />
+          </mesh>
+          {/* Inner glow core — the actual flame */}
+          <mesh>
+            <sphereGeometry args={[0.10, 14, 10]} />
+            <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
+          </mesh>
+          {/* Bottom plate — hexagonal */}
+          <mesh position={[0, -0.18, 0]} castShadow>
+            <cylinderGeometry args={[0.12, 0.10, 0.04, 6]} />
+            <meshStandardMaterial color="#241408" roughness={0.95} />
+          </mesh>
+        </group>
+
+        {/* Feet — small, peeking from the robe hem */}
+        <mesh position={[-0.13, 0.06, 0.02]} castShadow>
+          <sphereGeometry args={[0.10, 10, 8]} />
+          <meshStandardMaterial color="#1a0e08" roughness={0.95} />
+        </mesh>
+        <mesh position={[0.13, 0.06, 0.02]} castShadow>
+          <sphereGeometry args={[0.10, 10, 8]} />
+          <meshStandardMaterial color="#1a0e08" roughness={0.95} />
         </mesh>
       </group>
     </group>
