@@ -58,6 +58,10 @@ const LANTERN_BASE_DISTANCE  = 30;      // world units of reach
 
 function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
+  // Inner group that does the hop — contact shadow stays outside it so the
+  // shadow stays on the floor while the body lifts off (penguin-rescue
+  // pattern, more lively than a subtle chest-breathe).
+  const bounceRef = useRef<THREE.Group>(null);
   const lanternMat = useRef<THREE.MeshStandardMaterial>(null);
   const lanternLightRef = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
@@ -67,14 +71,19 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
     groupRef.current.rotation.y = d.rot;
     const t = clock.getElapsedTime();
 
-    // Body life: slow chest-breathing when idle, faster jog-bounce when
-    // moving, blended by speed so the transition is smooth. Plus a tiny
-    // side-to-side lean while walking to sell the gait.
+    // Constant hop — idle still bounces visibly (player is alive!), walking
+    // bounces a touch higher. abs(sin) gives a "land–crouch–leap" feel
+    // rather than a sine breath. Frequency matches penguin-rescue's leader.
     const moveFactor = Math.min(1, d.speed / PLAYER_SPEED);
-    const idleBob = Math.sin(t * 1.8) * 0.04;
-    const walkBob = Math.abs(Math.sin(t * 9)) * 0.12;
-    groupRef.current.position.y = idleBob * (1 - moveFactor) + walkBob * moveFactor;
-    groupRef.current.rotation.z = Math.sin(t * 9) * 0.07 * moveFactor;
+    const hopT = t * (5.5 + moveFactor * 1.5);
+    const hopHeight = 0.20 + moveFactor * 0.14;
+    if (bounceRef.current) {
+      bounceRef.current.position.y = Math.abs(Math.sin(hopT)) * hopHeight;
+      // Subtle side-lean synced to the hop; stronger when walking.
+      bounceRef.current.rotation.z = Math.sin(hopT) * (0.06 + moveFactor * 0.06);
+      // Tiny forward pitch so the leap feels intentional, not vertical.
+      bounceRef.current.rotation.x = Math.abs(Math.sin(hopT)) * 0.08 * moveFactor;
+    }
     // Two-band flicker — wider amplitude than before so the breath reads
     // clearly. Range approximately [0.65, 1.35] on the slow band.
     //   • slow sinusoid (~5.5s period) → the lantern's "breath"
@@ -94,48 +103,15 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   });
   return (
     <group ref={groupRef}>
-      {/* tiny contact shadow — kept faint so it blends into the lit floor */}
+      {/* Contact shadow — NOT bobbed, stays on the floor while the body
+          hops above it. Sells the leap visually. */}
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.5, 24]} />
-        <meshBasicMaterial color="#000" transparent opacity={0.25} />
+        <meshBasicMaterial color="#000" transparent opacity={0.32} />
       </mesh>
-      {/* lower body */}
-      <RoundedBox args={[0.55, 0.55, 0.45]} radius={0.16} smoothness={5} position={[0, 0.35, 0]} castShadow>
-        <meshStandardMaterial color="#3c2b1f" roughness={0.9} />
-      </RoundedBox>
-      {/* coat */}
-      <RoundedBox args={[0.7, 0.7, 0.5]} radius={0.20} smoothness={5} position={[0, 0.95, 0]} castShadow>
-        <meshStandardMaterial color="#5a4030" roughness={0.85} />
-      </RoundedBox>
-      {/* head */}
-      <mesh position={[0, 1.45, 0]} castShadow>
-        <sphereGeometry args={[0.22, 16, 12]} />
-        <meshStandardMaterial color="#d6b69a" roughness={0.8} />
-      </mesh>
-      {/* hat */}
-      <mesh position={[0, 1.66, -0.04]} castShadow>
-        <coneGeometry args={[0.26, 0.30, 18]} />
-        <meshStandardMaterial color="#2a1a12" roughness={0.9} />
-      </mesh>
-      {/* lantern stick + lantern body */}
-      <mesh position={[0.30, 1.05, 0.30]} rotation={[0.6, 0, -0.4]}>
-        <cylinderGeometry args={[0.025, 0.025, 0.7, 8]} />
-        <meshStandardMaterial color="#2a1a10" />
-      </mesh>
-      <mesh position={[0.46, 0.85, 0.50]}>
-        <boxGeometry args={[0.22, 0.30, 0.22]} />
-        <meshStandardMaterial color="#1a1410" />
-      </mesh>
-      <mesh position={[0.46, 0.85, 0.50]}>
-        <sphereGeometry args={[0.13, 14, 10]} />
-        <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
-      </mesh>
-
-      {/* The lantern — a single omnidirectional warm orange PointLight at
-          the hanging-bulb position. Intensity + distance "breathe" in
-          useFrame (slow sin + small fast jitter) for the candle-flame
-          flicker the lantern needs. castShadow so the player still throws
-          a shadow on the cave floor. */}
+      {/* The lantern's light source stays at the player's true position
+          (no bounce) so monsters' fleeing logic — which checks distance
+          from d.pos to monster — matches what the player visually sees. */}
       <pointLight
         ref={lanternLightRef}
         position={[0.46, 0.85, 0.50]}
@@ -151,16 +127,50 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         shadow-camera-near={0.3}
         shadow-camera-far={20}
       />
-
-      {/* feet — short cylinders */}
-      <mesh position={[-0.14, 0.10, 0]} castShadow>
-        <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
-        <meshStandardMaterial color="#1a0e08" />
-      </mesh>
-      <mesh position={[0.14, 0.10, 0]} castShadow>
-        <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
-        <meshStandardMaterial color="#1a0e08" />
-      </mesh>
+      {/* The body — everything inside this group hops together */}
+      <group ref={bounceRef}>
+        {/* lower body */}
+        <RoundedBox args={[0.55, 0.55, 0.45]} radius={0.16} smoothness={5} position={[0, 0.35, 0]} castShadow>
+          <meshStandardMaterial color="#3c2b1f" roughness={0.9} />
+        </RoundedBox>
+        {/* coat */}
+        <RoundedBox args={[0.7, 0.7, 0.5]} radius={0.20} smoothness={5} position={[0, 0.95, 0]} castShadow>
+          <meshStandardMaterial color="#5a4030" roughness={0.85} />
+        </RoundedBox>
+        {/* head */}
+        <mesh position={[0, 1.45, 0]} castShadow>
+          <sphereGeometry args={[0.22, 16, 12]} />
+          <meshStandardMaterial color="#d6b69a" roughness={0.8} />
+        </mesh>
+        {/* hat */}
+        <mesh position={[0, 1.66, -0.04]} castShadow>
+          <coneGeometry args={[0.26, 0.30, 18]} />
+          <meshStandardMaterial color="#2a1a12" roughness={0.9} />
+        </mesh>
+        {/* lantern stick + lantern body — visually attached to the
+            hopping body, even though the actual PointLight stays outside */}
+        <mesh position={[0.30, 1.05, 0.30]} rotation={[0.6, 0, -0.4]}>
+          <cylinderGeometry args={[0.025, 0.025, 0.7, 8]} />
+          <meshStandardMaterial color="#2a1a10" />
+        </mesh>
+        <mesh position={[0.46, 0.85, 0.50]}>
+          <boxGeometry args={[0.22, 0.30, 0.22]} />
+          <meshStandardMaterial color="#1a1410" />
+        </mesh>
+        <mesh position={[0.46, 0.85, 0.50]}>
+          <sphereGeometry args={[0.13, 14, 10]} />
+          <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
+        </mesh>
+        {/* feet */}
+        <mesh position={[-0.14, 0.10, 0]} castShadow>
+          <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
+          <meshStandardMaterial color="#1a0e08" />
+        </mesh>
+        <mesh position={[0.14, 0.10, 0]} castShadow>
+          <cylinderGeometry args={[0.10, 0.10, 0.20, 10]} />
+          <meshStandardMaterial color="#1a0e08" />
+        </mesh>
+      </group>
     </group>
   );
 }
