@@ -152,7 +152,10 @@ export function Lantern() {
           <div
             className="ln__fog"
             style={{
-              background: `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${Math.max(14, lightRadius * 8)}%, rgba(0,0,0,0.20) ${Math.max(30, lightRadius * 14)}%, rgba(0,0,0,0.55) 80%)`,
+              // Widened bright zone — the lantern's lit area shouldn't be
+              // dimmed by the multiply overlay. Only the periphery (past
+              // ~70% radius) gets meaningful darkening.
+              background: `radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) ${Math.max(22, lightRadius * 12)}%, rgba(0,0,0,0.10) ${Math.max(42, lightRadius * 18)}%, rgba(0,0,0,0.42) 80%)`,
             }}
           />
         </div>

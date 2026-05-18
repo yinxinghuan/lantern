@@ -52,8 +52,8 @@ function FollowCamera({ state }: { state: React.MutableRefObject<GameRef> }) {
 // that illuminates the floor + nearby crystals + monsters.
 // Base values for the lantern's omnidirectional glow. The "breath" function
 // in useFrame modulates both intensity and distance around these.
-const LANTERN_BASE_INTENSITY = 160;     // PointLight intensity units (decay=2)
-const LANTERN_BASE_DISTANCE  = 34;      // world units of reach
+const LANTERN_BASE_INTENSITY = 320;     // PointLight intensity units (decay=2)
+const LANTERN_BASE_DISTANCE  = 40;      // world units of reach
 
 function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -649,7 +649,7 @@ export function Scene(props: SceneProps) {
       {/* Floor: dark damp stone */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[ARENA_HALF * 4, ARENA_HALF * 4]} />
-        <meshStandardMaterial color="#241c14" roughness={0.85} />
+        <meshStandardMaterial color="#3c2d1e" roughness={0.78} />
       </mesh>
       {/* Cave walls (outer ring) — taller dark cylinders around perimeter */}
       <mesh position={[0, 1.5, -ARENA_HALF - 0.5]} castShadow>
