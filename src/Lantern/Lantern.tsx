@@ -109,6 +109,19 @@ export function Lantern() {
     window.setTimeout(() => setLevelTitle(null), 1700);
   }, []);
 
+  // Reshuffle the current level — re-randomizes pillars / monsters / crystals
+  // / exit position and resets the timer + pickup counter. Run continues.
+  const reroll = useCallback(() => {
+    const d = stateRef.current;
+    if (d.gameOver || victory) return;
+    startLevel(d, d.level);
+    setPickupsNow(0);
+    setTimeLeft(getLevelTuning(d.level).timeLimit);
+    setPellets([]);
+    setBanners([]);
+    setHeartbeatRate(0);
+  }, [victory]);
+
   const start = useCallback(() => {
     // CRITICAL: set the playing phase synchronously BEFORE touching audio.
     stateRef.current = createGameState();
@@ -285,6 +298,17 @@ export function Lantern() {
               <span className="ln__exit-progress-text">EXIT REVEALED · FIND THE VIOLET STONE</span>
             </div>
           )}
+          {/* Reroll — reshuffle the current level's layout if the player
+              doesn't like the spawn / exit position. Run continues. */}
+          <button className="ln__reroll-btn" onPointerDown={reroll}>
+            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
+              <path d="M4 12 A 8 8 0 0 1 19 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              <path d="M14 4 L 19 7 L 16 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M20 12 A 8 8 0 0 1 5 17" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              <path d="M10 20 L 5 17 L 8 13" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>RESHUFFLE LEVEL</span>
+          </button>
         </div>
       )}
 

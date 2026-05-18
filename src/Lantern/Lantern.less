@@ -164,6 +164,39 @@
       font-weight: 700;
     }
   }
+  // Reroll button — small pill below the progress chip
+  &__reroll-btn {
+    margin: 6px auto 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px 5px;
+    background: rgba(28,18,28,.55);
+    border: 1px solid rgba(255, 220, 160, .18);
+    color: rgba(255, 220, 160, .85);
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+    pointer-events: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .20em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: none;
+
+    &:active {
+      transform: translateY(1px);
+      background: rgba(48, 30, 50, .75);
+      border-color: rgba(255, 220, 160, .35);
+    }
+  }
+
   &__exit-reveal-flash {
     position: absolute;
     inset: 0;
