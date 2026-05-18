@@ -866,13 +866,23 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
   );
 }
 
-// Exit stone — the level goal. Tall obelisk made of a glowing crystal
-// shaft, two stacked rings, and a beacon column rising to the ceiling so
-// the player can spot it from far away. Pulses + rotates to grab attention.
+// Exit stone — the level goal. Designed to look NOTHING like the regular
+// blue/red/green/gold crystals so the player can spot the goal instantly:
+//   • Violet/magenta palette — a color used nowhere else in the game
+//   • Three counter-rotating floating rings (portal feel)
+//   • Larger central crystal (1.6× a regular crystal)
+//   • Tall vertical beacon column visible above all pillars
+//   • Big wide ground halo
 function Exit({ state }: { state: React.MutableRefObject<GameRef> }) {
   const groupRef = useRef<THREE.Group>(null);
+  const ring1Ref = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  const ring3Ref = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const coreMat = useRef<THREE.MeshStandardMaterial>(null);
   const beaconMat = useRef<THREE.MeshBasicMaterial>(null);
   const haloMat = useRef<THREE.MeshBasicMaterial>(null);
+  const innerHaloMat = useRef<THREE.MeshBasicMaterial>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     const d = state.current;
@@ -881,47 +891,68 @@ function Exit({ state }: { state: React.MutableRefObject<GameRef> }) {
     if (!ex) { groupRef.current.visible = false; return; }
     groupRef.current.visible = true;
     groupRef.current.position.copy(ex.position);
+
     const t = clock.getElapsedTime();
-    groupRef.current.rotation.y = t * 0.6;
-    const pulse = 0.7 + Math.sin(t * 2.4) * 0.30;
-    if (beaconMat.current) beaconMat.current.opacity = 0.18 + pulse * 0.22;
-    if (haloMat.current)   haloMat.current.opacity   = 0.30 + pulse * 0.40;
-    if (lightRef.current)  lightRef.current.intensity = 14 + pulse * 10;
+    const pulse = 0.7 + Math.sin(t * 2.2) * 0.30;
+
+    // Three counter-rotating rings (portal feel)
+    if (ring1Ref.current) ring1Ref.current.rotation.z =  t * 1.4;
+    if (ring2Ref.current) ring2Ref.current.rotation.z = -t * 1.1;
+    if (ring3Ref.current) ring3Ref.current.rotation.z =  t * 0.8;
+    // Slight bob on the core to sell the "floating" feel
+    if (coreRef.current) {
+      coreRef.current.position.y = 1.10 + Math.sin(t * 1.5) * 0.08;
+      coreRef.current.rotation.y = t * 0.9;
+    }
+    if (coreMat.current) coreMat.current.emissiveIntensity = 3.0 + pulse * 1.4;
+    if (beaconMat.current)   beaconMat.current.opacity   = 0.22 + pulse * 0.28;
+    if (haloMat.current)     haloMat.current.opacity     = 0.32 + pulse * 0.35;
+    if (innerHaloMat.current) innerHaloMat.current.opacity = 0.25 + pulse * 0.28;
+    if (lightRef.current)    lightRef.current.intensity = 18 + pulse * 14;
   });
   return (
     <group ref={groupRef}>
-      {/* Base ring on the floor — wider glow halo */}
+      {/* Wide outer floor halo — violet, much bigger than any crystal halo */}
       <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.9, 1.9, 48]} />
-        <meshBasicMaterial ref={haloMat} color="#a8e6ff" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <ringGeometry args={[1.2, 2.8, 56]} />
+        <meshBasicMaterial ref={haloMat} color="#c878ff" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      {/* Inner pedestal */}
-      <mesh position={[0, 0.12, 0]} castShadow>
-        <cylinderGeometry args={[0.65, 0.85, 0.22, 18]} />
-        <meshStandardMaterial color="#2a3848" roughness={1} />
+      {/* Solid inner glow disc on the floor */}
+      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[1.20, 36]} />
+        <meshBasicMaterial ref={innerHaloMat} color="#a050ff" transparent opacity={0.40} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
-      {/* Lower ring (suspended) */}
-      <mesh position={[0, 0.55, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.42, 0.04, 8, 22]} />
-        <meshStandardMaterial color="#7accff" emissive="#5aa8ff" emissiveIntensity={1.6} />
+      {/* Pedestal — dark violet stone, taller than regular ground tiles */}
+      <mesh position={[0, 0.18, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.72, 0.90, 0.34, 18]} />
+        <meshStandardMaterial color="#3a2848" roughness={1} />
       </mesh>
-      {/* Tall crystal obelisk in the middle */}
-      <mesh position={[0, 1.10, 0]} castShadow>
-        <octahedronGeometry args={[0.42, 0]} />
-        <meshStandardMaterial color="#bce8ff" emissive="#5aa8ff" emissiveIntensity={2.5} roughness={0.2} metalness={0.6} />
+      {/* Three counter-rotating rings (portal). Each lies flat-ish but
+          tilted on Z so the rotation is visible from the top-down camera. */}
+      <mesh ref={ring1Ref} position={[0, 0.65, 0]} rotation={[Math.PI / 2.4, 0, 0]}>
+        <torusGeometry args={[0.62, 0.06, 8, 30]} />
+        <meshStandardMaterial color="#e0c0ff" emissive="#a050ff" emissiveIntensity={2.8} />
       </mesh>
-      {/* Upper ring */}
-      <mesh position={[0, 1.70, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.36, 0.035, 8, 20]} />
-        <meshStandardMaterial color="#7accff" emissive="#5aa8ff" emissiveIntensity={1.6} />
+      <mesh ref={ring2Ref} position={[0, 1.10, 0]} rotation={[Math.PI / 2.2, 0, 0]}>
+        <torusGeometry args={[0.50, 0.05, 8, 28]} />
+        <meshStandardMaterial color="#e0c0ff" emissive="#c070ff" emissiveIntensity={2.8} />
       </mesh>
-      {/* Beacon column going up — visible above pillars */}
-      <mesh position={[0, 4.0, 0]}>
-        <cylinderGeometry args={[0.12, 0.20, 7.0, 12, 1, true]} />
-        <meshBasicMaterial ref={beaconMat} color="#bce8ff" transparent opacity={0.25} side={THREE.DoubleSide} depthWrite={false} blending={THREE.AdditiveBlending} />
+      <mesh ref={ring3Ref} position={[0, 1.55, 0]} rotation={[Math.PI / 2.0, 0, 0]}>
+        <torusGeometry args={[0.40, 0.04, 8, 24]} />
+        <meshStandardMaterial color="#f4d8ff" emissive="#d080ff" emissiveIntensity={2.8} />
       </mesh>
-      {/* Point light at the stone — bright cool blue beacon */}
-      <pointLight ref={lightRef} position={[0, 1.0, 0]} color="#9fd6ff" intensity={20} distance={9} decay={2} />
+      {/* Central floating crystal — bigger than any regular crystal */}
+      <mesh ref={coreRef} position={[0, 1.10, 0]} castShadow>
+        <octahedronGeometry args={[0.58, 0]} />
+        <meshStandardMaterial ref={coreMat} color="#f4d8ff" emissive="#b060ff" emissiveIntensity={3.5} roughness={0.2} metalness={0.6} />
+      </mesh>
+      {/* Tall violet beacon column rising to the cave ceiling */}
+      <mesh position={[0, 6.0, 0]}>
+        <cylinderGeometry args={[0.16, 0.34, 11.0, 14, 1, true]} />
+        <meshBasicMaterial ref={beaconMat} color="#e0b8ff" transparent opacity={0.30} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {/* Bright violet point light at the stone */}
+      <pointLight ref={lightRef} position={[0, 1.0, 0]} color="#c878ff" intensity={26} distance={11} decay={2} />
     </group>
   );
 }
