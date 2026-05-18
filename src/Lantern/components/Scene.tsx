@@ -213,14 +213,15 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
         {/* Lantern — proper hexagonal frame with cap, base, hanging ring,
             and a glowing inner core. Reads as a real prop, not a box. */}
         <group position={[0.08, 0.85, 0.55]}>
-          {/* Hanging ring above the cap */}
-          <mesh position={[0, 0.27, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          {/* Hanging ring above everything */}
+          <mesh position={[0, 0.40, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
             <torusGeometry args={[0.025, 0.008, 5, 10]} />
             <meshStandardMaterial color="#1a1006" roughness={0.85} />
           </mesh>
-          {/* Top cap — slightly wider hexagonal lid */}
-          <mesh position={[0, 0.20, 0]} castShadow>
-            <cylinderGeometry args={[0.10, 0.13, 0.04, 6]} />
+          {/* Tiny chimney ring — replaces the old wide cap. Doesn't block
+              the flame from rising out the top of the cage. */}
+          <mesh position={[0, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[0.10, 0.018, 5, 14]} />
             <meshStandardMaterial color="#241408" roughness={0.95} />
           </mesh>
           {/* Lantern cage — 6-sided open frame */}
@@ -229,26 +230,28 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
             <meshStandardMaterial color="#1a1006" roughness={0.85} side={THREE.DoubleSide} />
           </mesh>
           {/* Inner glow core — a small emissive sphere that drives the
-              lantern's "breath" via lanternMat. The dancing flame layers
-              sit on top of it. */}
+              lantern's "breath" via lanternMat. */}
           <mesh>
             <sphereGeometry args={[0.08, 12, 10]} />
             <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
           </mesh>
+          {/* FLAME — three layered teardrops that rise FAR above the cage
+              top (most of the height is above the chimney) so they read
+              from the top-down camera. Base sits inside the cage. */}
           {/* Outermost flame wisp — biggest, dimmest, jitters most */}
-          <mesh ref={flameOuterRef} position={[0, 0.03, 0]}>
-            <coneGeometry args={[0.10, 0.26, 10]} />
-            <meshBasicMaterial color="#ffb04a" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <mesh ref={flameOuterRef} position={[0, 0.26, 0]}>
+            <coneGeometry args={[0.18, 0.66, 14]} />
+            <meshBasicMaterial color="#ff9038" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
           {/* Middle flame layer */}
-          <mesh ref={flameMidRef} position={[0, 0.025, 0]}>
-            <coneGeometry args={[0.075, 0.22, 10]} />
-            <meshBasicMaterial color="#ffd068" transparent opacity={0.7} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <mesh ref={flameMidRef} position={[0, 0.22, 0]}>
+            <coneGeometry args={[0.12, 0.52, 12]} />
+            <meshBasicMaterial color="#ffc560" transparent opacity={0.80} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
           {/* Inner flame tongue — brightest, slim */}
-          <mesh ref={flameInnerRef} position={[0, 0.02, 0]}>
-            <coneGeometry args={[0.05, 0.18, 8]} />
-            <meshBasicMaterial color="#fff2c0" transparent opacity={0.95} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <mesh ref={flameInnerRef} position={[0, 0.18, 0]}>
+            <coneGeometry args={[0.07, 0.38, 10]} />
+            <meshBasicMaterial color="#fff2c0" transparent opacity={0.98} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
           {/* Bottom plate — hexagonal */}
           <mesh position={[0, -0.18, 0]} castShadow>
