@@ -122,6 +122,57 @@
     text-align: center;
   }
 
+  // Exit-summon progress chip (under the level pill)
+  &__exit-progress {
+    margin: 6px auto 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 5px;
+    background: rgba(28,18,28,.45);
+    border: 1px solid rgba(180, 120, 220, .22);
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: auto;
+    color: rgba(220, 200, 240, .85);
+
+    &--open {
+      border-color: rgba(200, 120, 255, .55);
+      animation: ln-exit-open-pulse 1.4s ease-out 3;
+    }
+  }
+  &__exit-progress-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #c878ff;
+    box-shadow: 0 0 8px rgba(200, 120, 255, .65);
+    &--open {
+      animation: ln-exit-dot-pulse 1.0s ease-in-out infinite alternate;
+    }
+  }
+  &__exit-progress-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    line-height: 1;
+    b {
+      color: #f0d8ff;
+      font-weight: 700;
+    }
+  }
+  &__exit-reveal-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 14;
+    pointer-events: none;
+    background: radial-gradient(60% 60% at 50% 50%, rgba(200, 120, 255, 0) 0%, rgba(200, 120, 255, .12) 50%, rgba(200, 120, 255, .28) 75%, rgba(0,0,0,0) 100%);
+    animation: ln-exit-reveal-flash .9s ease-out forwards;
+  }
+
   // Level intro overlay — appears at start of each level
   &__level-intro {
     position: absolute;
@@ -497,5 +548,18 @@
   0%   { opacity: 0; }
   15%  { opacity: 1; }
   85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes ln-exit-open-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(200, 120, 255, 0); }
+  50%      { box-shadow: 0 0 16px rgba(200, 120, 255, .55); }
+}
+@keyframes ln-exit-dot-pulse {
+  0%   { transform: scale(1);   box-shadow: 0 0 8px rgba(200, 120, 255, .65); }
+  100% { transform: scale(1.4); box-shadow: 0 0 18px rgba(200, 120, 255, .95); }
+}
+@keyframes ln-exit-reveal-flash {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
   100% { opacity: 0; }
 }

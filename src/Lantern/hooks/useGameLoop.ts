@@ -44,9 +44,11 @@ export interface GameRef {
   initialized: boolean;
   gameOver: boolean;
   // Level progression
-  level: number;       // 1-indexed
-  levelCleared: boolean;   // set when player touches exit; UI handles transition
-  victory: boolean;        // true after final level cleared
+  level: number;          // 1-indexed
+  levelPickups: number;   // crystals collected THIS level — gates exit spawn
+  exitSummonedJustNow: boolean; // one-shot flag for the UI to play a banner
+  levelCleared: boolean;  // set when player touches exit; UI handles transition
+  victory: boolean;       // true after final level cleared
 }
 
 export function createGameState(): GameRef {
@@ -73,6 +75,8 @@ export function createGameState(): GameRef {
     initialized: false,
     gameOver: false,
     level: 1,
+    levelPickups: 0,
+    exitSummonedJustNow: false,
     levelCleared: false,
     victory: false,
   };
@@ -116,6 +120,25 @@ function spawnMonster(d: GameRef, tuning: LevelTuning) {
   });
 }
 
+// Spawn the boss monster — single big shadow that only fears strong light
+// (green crystal active). Used only on isBoss levels.
+function spawnBossMonster(d: GameRef) {
+  const pos = randomSpawnPos(d, 18, 2);
+  d.monsters.push({
+    id: nextId(),
+    position: pos,
+    velocity: new THREE.Vector3(),
+    rotation: Math.random() * Math.PI * 2,
+    state: 'lurking',
+    fleeT: 0,
+    cooldownT: 0,
+    strikeT: 0,
+    strikeAimX: 0,
+    strikeAimZ: 0,
+    isBoss: true,
+  });
+}
+
 // Place the exit stone at a random position far from the player. This is
 // the level goal — the player must navigate to it through the dark.
 function spawnExit(d: GameRef, tuning: LevelTuning) {
@@ -135,10 +158,14 @@ function spawnExit(d: GameRef, tuning: LevelTuning) {
 
 // Reset everything that changes per level (monsters, crystals, walls, exit)
 // while preserving cumulative score and the player's lantern upgrades.
+// The exit deliberately does NOT spawn here — it appears only after the
+// player collects tuning.exitNeed crystals (any type) during the level.
 export function startLevel(d: GameRef, level: number) {
   const tuning = getLevelTuning(level);
   d.level = level;
   d.levelT = 0;
+  d.levelPickups = 0;
+  d.exitSummonedJustNow = false;
   d.levelCleared = false;
   d.monsters = [];
   d.crystals = [];
@@ -146,15 +173,23 @@ export function startLevel(d: GameRef, level: number) {
   d.exit = null;
   d.monsterSpawnTimer = 0;
   d.crystalRespawnTimer = 0;
-  // Move the player back near the altar for a clean reset between levels.
-  // The exit spawns at >= tuning.exitMinDist from this.
   d.pos.set(0, 0, 5);
   d.rot = Math.PI;
   d.maxDepth = Math.hypot(d.pos.x, d.pos.z);
 
   for (let i = 0; i < tuning.crystalInitial; i++) spawnCrystal(d);
   for (let i = 0; i < tuning.monsterCount; i++) spawnMonster(d, tuning);
+  // Boss level — one Dark Lord that doesn't fear normal light.
+  if (tuning.isBoss) spawnBossMonster(d);
+}
+
+// Try to summon the exit. Called after each pickup once the threshold is
+// hit. Sets a one-shot flag so the UI can show a "EXIT REVEALED" banner.
+function maybeSummonExit(d: GameRef, tuning: LevelTuning) {
+  if (d.exit) return;
+  if (d.levelPickups < tuning.exitNeed) return;
   spawnExit(d, tuning);
+  d.exitSummonedJustNow = true;
 }
 
 function spawnCrystal(d: GameRef, type?: CrystalType) {
@@ -320,7 +355,12 @@ export function useGameLoop(p: GameLoopParams) {
       const dist = Math.hypot(dx, dz);
       if (dist < nearestDist) nearestDist = dist;
 
+      const strongLight = d.greenT > 0;
       const lit = dist < currentRadius;
+      // The Dark Lord ignores normal light — only flees during strong
+      // light (green crystal active). For regular monsters, "scared"
+      // matches "lit". This is the whole gimmick of the boss.
+      const scared = m.isBoss ? (strongLight && lit) : lit;
 
       // Walls push the monster outward
       for (const w of d.walls) {
@@ -334,17 +374,23 @@ export function useGameLoop(p: GameLoopParams) {
         }
       }
 
-      // State machine
-      if (lit && m.state !== 'fleeing') {
+      // State machine — boss tunes (slower base, faster windup, longer
+      // reach). Regular monsters get bossSpeedK=1.0 so this is a no-op.
+      const bossSpeedK = m.isBoss ? 0.70 : 1.0;
+      const bossTelegraphK = m.isBoss ? 0.85 : 1.0;
+      const bossRangeK = m.isBoss ? 1.10 : 1.0;
+      const monsterBaseSpeed = MONSTER_BASE_SPEED * tuning.monsterSpeed * bossSpeedK;
+      const monsterFleeSpeed = MONSTER_FLEE_SPEED * tuning.monsterFleeSpeed * bossSpeedK;
+      const myTelegraph = tuning.strikeTelegraph * bossTelegraphK;
+      const myRangeMax  = tuning.strikeRangeMax  * bossRangeK;
+
+      if (scared && m.state !== 'fleeing') {
         m.state = 'fleeing';
         m.fleeT = MONSTER_FLEE_TIME;
         m.strikeT = 0;
         emitFx(d, 'monster_flee', m.position.x, m.position.z);
         p.playSfx('monster_flee');
       }
-      const monsterBaseSpeed = MONSTER_BASE_SPEED * tuning.monsterSpeed;
-      const monsterFleeSpeed = MONSTER_FLEE_SPEED * tuning.monsterFleeSpeed;
-
       if (m.state === 'fleeing') {
         m.fleeT -= c;
         if (dist > 0.001) {
@@ -352,7 +398,7 @@ export function useGameLoop(p: GameLoopParams) {
           m.velocity.x = -dx * n * monsterFleeSpeed;
           m.velocity.z = -dz * n * monsterFleeSpeed;
         }
-        if (m.fleeT <= 0 && !lit) m.state = 'lurking';
+        if (m.fleeT <= 0 && !scared) m.state = 'lurking';
       } else if (m.state === 'cooldown') {
         m.cooldownT -= c;
         if (dist > 0.001) {
@@ -372,7 +418,7 @@ export function useGameLoop(p: GameLoopParams) {
           m.velocity.x *= 0.5;
           m.velocity.z *= 0.5;
         }
-        if (!lit && dist > MONSTER_STRIKE_RANGE_MIN && dist < tuning.strikeRangeMax) {
+        if (!scared && dist > MONSTER_STRIKE_RANGE_MIN && dist < myRangeMax) {
           m.state = 'striking';
           m.strikeT = 0;
           const inv = 1 / Math.max(dist, 0.001);
@@ -385,11 +431,11 @@ export function useGameLoop(p: GameLoopParams) {
         m.velocity.x *= 0.85;
         m.velocity.z *= 0.85;
         m.strikeT += c;
-        if (lit) {
+        if (scared) {
           m.state = 'fleeing';
           m.fleeT = MONSTER_FLEE_TIME;
           m.strikeT = 0;
-        } else if (m.strikeT >= tuning.strikeTelegraph + MONSTER_STRIKE_LIVE) {
+        } else if (m.strikeT >= myTelegraph + MONSTER_STRIKE_LIVE) {
           m.state = 'cooldown';
           m.cooldownT = tuning.strikeCooldown;
           m.strikeT = 0;
@@ -405,9 +451,9 @@ export function useGameLoop(p: GameLoopParams) {
       m.position.z = Math.max(-ARENA_HALF + 0.5, Math.min(ARENA_HALF - 0.5, m.position.z));
 
       // STRIKE HIT TEST — during the live window only
-      if (m.state === 'striking' && m.strikeT >= tuning.strikeTelegraph) {
-        const handX = m.position.x + m.strikeAimX * tuning.strikeRangeMax;
-        const handZ = m.position.z + m.strikeAimZ * tuning.strikeRangeMax;
+      if (m.state === 'striking' && m.strikeT >= myTelegraph) {
+        const handX = m.position.x + m.strikeAimX * myRangeMax;
+        const handZ = m.position.z + m.strikeAimZ * myRangeMax;
         const hdx = handX - d.pos.x;
         const hdz = handZ - d.pos.z;
         if (Math.hypot(hdx, hdz) < MONSTER_STRIKE_HIT_RADIUS && d.time > GRACE_PERIOD) {
@@ -459,6 +505,9 @@ export function useGameLoop(p: GameLoopParams) {
       const dz = cr.position.z - d.pos.z;
       if (Math.hypot(dx, dz) < CRYSTAL_PICKUP_RADIUS) {
         d.crystals.splice(i, 1);
+        // Count toward this level's exit-summon threshold (any type).
+        d.levelPickups++;
+        maybeSummonExit(d, tuning);
         switch (cr.type) {
           case 'red':
             d.redCount++;

@@ -63,6 +63,12 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
   const bounceRef = useRef<THREE.Group>(null);
   const lanternMat = useRef<THREE.MeshStandardMaterial>(null);
   const lanternLightRef = useRef<THREE.PointLight>(null);
+  // Three-layer flame inside the lantern. Each is a small teardrop cone
+  // that jitters scale + rotation at its own frequency for a "live flame"
+  // dance. Additive blending so they read as light rather than solid.
+  const flameInnerRef = useRef<THREE.Mesh>(null);
+  const flameMidRef = useRef<THREE.Mesh>(null);
+  const flameOuterRef = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
     const d = state.current;
     if (!groupRef.current) return;
@@ -98,6 +104,26 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
     }
     if (lanternMat.current) {
       lanternMat.current.emissiveIntensity = 3.2 * breath;
+    }
+
+    // Flame jitter — three layers, each its own waveform. The result reads
+    // as a flickering candle/torch inside the lantern cage rather than a
+    // dead glow sphere. Scales squish vertically + sway slightly.
+    const flickerA = 0.85 + Math.sin(t * 19) * 0.18 + Math.sin(t * 31.7) * 0.07;
+    const flickerB = 0.85 + Math.sin(t * 14.2 + 1.1) * 0.20 + Math.sin(t * 27.0) * 0.08;
+    const flickerC = 0.85 + Math.sin(t * 11.3 + 2.4) * 0.18;
+    const sway     = Math.sin(t * 8.5) * 0.08 + Math.sin(t * 13.1) * 0.04;
+    if (flameInnerRef.current) {
+      flameInnerRef.current.scale.set(flickerA * 0.9, flickerA * 1.25, flickerA * 0.9);
+      flameInnerRef.current.rotation.z = sway * 0.6;
+    }
+    if (flameMidRef.current) {
+      flameMidRef.current.scale.set(flickerB * 0.95, flickerB * 1.30, flickerB * 0.95);
+      flameMidRef.current.rotation.z = sway;
+    }
+    if (flameOuterRef.current) {
+      flameOuterRef.current.scale.set(flickerC, flickerC * 1.35, flickerC);
+      flameOuterRef.current.rotation.z = sway * 1.4;
     }
   });
   return (
@@ -202,10 +228,27 @@ function Player({ state }: { state: React.MutableRefObject<GameRef> }) {
             <cylinderGeometry args={[0.13, 0.13, 0.30, 6, 1, true]} />
             <meshStandardMaterial color="#1a1006" roughness={0.85} side={THREE.DoubleSide} />
           </mesh>
-          {/* Inner glow core — the actual flame */}
+          {/* Inner glow core — a small emissive sphere that drives the
+              lantern's "breath" via lanternMat. The dancing flame layers
+              sit on top of it. */}
           <mesh>
-            <sphereGeometry args={[0.10, 14, 10]} />
+            <sphereGeometry args={[0.08, 12, 10]} />
             <meshStandardMaterial ref={lanternMat} color="#ffc070" emissive="#ff8a30" emissiveIntensity={3.2} />
+          </mesh>
+          {/* Outermost flame wisp — biggest, dimmest, jitters most */}
+          <mesh ref={flameOuterRef} position={[0, 0.03, 0]}>
+            <coneGeometry args={[0.10, 0.26, 10]} />
+            <meshBasicMaterial color="#ffb04a" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+          {/* Middle flame layer */}
+          <mesh ref={flameMidRef} position={[0, 0.025, 0]}>
+            <coneGeometry args={[0.075, 0.22, 10]} />
+            <meshBasicMaterial color="#ffd068" transparent opacity={0.7} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+          {/* Inner flame tongue — brightest, slim */}
+          <mesh ref={flameInnerRef} position={[0, 0.02, 0]}>
+            <coneGeometry args={[0.05, 0.18, 8]} />
+            <meshBasicMaterial color="#fff2c0" transparent opacity={0.95} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
           {/* Bottom plate — hexagonal */}
           <mesh position={[0, -0.18, 0]} castShadow>
@@ -737,9 +780,17 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
 
       // Eye color flip — yellow when lurking/fleeing/cooldown, red when
       // mid-strike so the player knows WHICH monster is the one launching.
+      // The boss's eyes are ALWAYS red (it doesn't fear the light), with
+      // an extra glow pulse to mark its identity.
       const eyes = eyeMats.current.get(m.id);
       if (eyes) {
-        if (striking) {
+        if (m.isBoss) {
+          eyes[0].emissive.setHex(0xff2030);
+          eyes[1].emissive.setHex(0xff2030);
+          const pulse = 1.8 + Math.sin(t * 4.5) * 0.6;
+          eyes[0].emissiveIntensity = pulse;
+          eyes[1].emissiveIntensity = pulse;
+        } else if (striking) {
           eyes[0].emissive.setHex(0xff2828);
           eyes[1].emissive.setHex(0xff2828);
           const pulse = 1.6 + Math.sin(t * 12) * 0.7;
@@ -761,16 +812,35 @@ function Monsters({ state }: { state: React.MutableRefObject<GameRef> }) {
       {d.monsters.map(m => (
         <group
           key={m.id}
+          scale={m.isBoss ? 1.65 : 1.0}
           ref={el => {
             if (el) groupRefs.current.set(m.id, el);
             else groupRefs.current.delete(m.id);
           }}
         >
-          {/* main body — twisted dark hood */}
+          {/* main body — twisted dark hood. Boss uses a slightly purple-
+              tinted black so it reads as distinct even at the same scale. */}
           <mesh position={[0, 0.85, 0]} castShadow>
             <coneGeometry args={[0.55, 1.5, 8]} />
-            <meshStandardMaterial color="#0a0810" roughness={0.95} />
+            <meshStandardMaterial color={m.isBoss ? '#100618' : '#0a0810'} roughness={0.95} />
           </mesh>
+          {/* Boss crown — a glowing red horned ring above the hood */}
+          {m.isBoss && (
+            <>
+              <mesh position={[0, 1.78, 0]}>
+                <torusGeometry args={[0.34, 0.05, 6, 18]} />
+                <meshStandardMaterial color="#2a0610" emissive="#ff2030" emissiveIntensity={2.2} />
+              </mesh>
+              <mesh position={[-0.22, 1.95, 0]} rotation={[0, 0, -0.3]}>
+                <coneGeometry args={[0.07, 0.30, 6]} />
+                <meshStandardMaterial color="#1a040a" emissive="#ff2030" emissiveIntensity={1.4} />
+              </mesh>
+              <mesh position={[0.22, 1.95, 0]} rotation={[0, 0, 0.3]}>
+                <coneGeometry args={[0.07, 0.30, 6]} />
+                <meshStandardMaterial color="#1a040a" emissive="#ff2030" emissiveIntensity={1.4} />
+              </mesh>
+            </>
+          )}
           {/* hood ring */}
           <mesh position={[0, 1.55, 0]}>
             <torusGeometry args={[0.28, 0.06, 6, 14]} />

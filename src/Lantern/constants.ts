@@ -82,18 +82,24 @@ export interface LevelTuning {
   strikeTelegraph: number;      // seconds of windup
   strikeRangeMax: number;
   strikeCooldown: number;
-  exitMinDist: number;          // exit spawn must be this far from spawn
+  exitMinDist: number;          // exit spawn must be this far from player
+  exitNeed: number;             // crystals (any type) to summon the exit
   crystalInitial: number;       // crystals on the field at level start
   isBoss: boolean;
 }
 
+// `exitNeed` is the number of crystals (any type) the player must collect
+// before the violet Exit Stone appears. Forces exploration / engagement
+// with the cave instead of beelining for a visible goal. Tuned so the
+// requirement scales but is always reachable given the level's initial
+// crystal count + the 5s respawn cadence.
 export const LEVELS: LevelTuning[] = [
-  { level: 1, name: 'Surface',         timeLimit: 90, monsterCount: 3,  monsterMax: 6,  monsterSpeed: 0.82, monsterFleeSpeed: 0.90, monsterSpawnInterval: 9.0, strikeTelegraph: 1.45, strikeRangeMax: 5.5, strikeCooldown: 3.4, exitMinDist: 14, crystalInitial: 18, isBoss: false },
-  { level: 2, name: 'Upper Cavern',    timeLimit: 80, monsterCount: 4,  monsterMax: 8,  monsterSpeed: 0.92, monsterFleeSpeed: 0.95, monsterSpawnInterval: 7.5, strikeTelegraph: 1.30, strikeRangeMax: 6.0, strikeCooldown: 3.0, exitMinDist: 17, crystalInitial: 18, isBoss: false },
-  { level: 3, name: 'Crystal Halls',   timeLimit: 75, monsterCount: 5,  monsterMax: 10, monsterSpeed: 1.00, monsterFleeSpeed: 1.00, monsterSpawnInterval: 6.0, strikeTelegraph: 1.20, strikeRangeMax: 6.5, strikeCooldown: 2.8, exitMinDist: 20, crystalInitial: 16, isBoss: false },
-  { level: 4, name: 'Deep Pools',      timeLimit: 70, monsterCount: 6,  monsterMax: 12, monsterSpeed: 1.10, monsterFleeSpeed: 1.05, monsterSpawnInterval: 5.0, strikeTelegraph: 1.10, strikeRangeMax: 7.0, strikeCooldown: 2.5, exitMinDist: 22, crystalInitial: 14, isBoss: false },
-  { level: 5, name: 'Forgotten Vault', timeLimit: 65, monsterCount: 8,  monsterMax: 14, monsterSpeed: 1.18, monsterFleeSpeed: 1.10, monsterSpawnInterval: 4.0, strikeTelegraph: 1.00, strikeRangeMax: 7.5, strikeCooldown: 2.3, exitMinDist: 24, crystalInitial: 12, isBoss: false },
-  { level: 6, name: 'The Abyss',       timeLimit: 80, monsterCount: 10, monsterMax: 16, monsterSpeed: 1.25, monsterFleeSpeed: 1.15, monsterSpawnInterval: 3.5, strikeTelegraph: 0.90, strikeRangeMax: 8.0, strikeCooldown: 2.1, exitMinDist: 26, crystalInitial: 10, isBoss: true },
+  { level: 1, name: 'Surface',         timeLimit: 90, monsterCount: 3,  monsterMax: 6,  monsterSpeed: 0.82, monsterFleeSpeed: 0.90, monsterSpawnInterval: 9.0, strikeTelegraph: 1.45, strikeRangeMax: 5.5, strikeCooldown: 3.4, exitMinDist: 14, exitNeed: 3,  crystalInitial: 18, isBoss: false },
+  { level: 2, name: 'Upper Cavern',    timeLimit: 80, monsterCount: 4,  monsterMax: 8,  monsterSpeed: 0.92, monsterFleeSpeed: 0.95, monsterSpawnInterval: 7.5, strikeTelegraph: 1.30, strikeRangeMax: 6.0, strikeCooldown: 3.0, exitMinDist: 17, exitNeed: 4,  crystalInitial: 18, isBoss: false },
+  { level: 3, name: 'Crystal Halls',   timeLimit: 75, monsterCount: 5,  monsterMax: 10, monsterSpeed: 1.00, monsterFleeSpeed: 1.00, monsterSpawnInterval: 6.0, strikeTelegraph: 1.20, strikeRangeMax: 6.5, strikeCooldown: 2.8, exitMinDist: 20, exitNeed: 5,  crystalInitial: 16, isBoss: false },
+  { level: 4, name: 'Deep Pools',      timeLimit: 70, monsterCount: 6,  monsterMax: 12, monsterSpeed: 1.10, monsterFleeSpeed: 1.05, monsterSpawnInterval: 5.0, strikeTelegraph: 1.10, strikeRangeMax: 7.0, strikeCooldown: 2.5, exitMinDist: 22, exitNeed: 6,  crystalInitial: 14, isBoss: false },
+  { level: 5, name: 'Forgotten Vault', timeLimit: 65, monsterCount: 8,  monsterMax: 14, monsterSpeed: 1.18, monsterFleeSpeed: 1.10, monsterSpawnInterval: 4.0, strikeTelegraph: 1.00, strikeRangeMax: 7.5, strikeCooldown: 2.3, exitMinDist: 24, exitNeed: 7,  crystalInitial: 12, isBoss: false },
+  { level: 6, name: 'The Abyss',       timeLimit: 80, monsterCount: 10, monsterMax: 16, monsterSpeed: 1.25, monsterFleeSpeed: 1.15, monsterSpawnInterval: 3.5, strikeTelegraph: 0.90, strikeRangeMax: 8.0, strikeCooldown: 2.1, exitMinDist: 26, exitNeed: 8,  crystalInitial: 10, isBoss: true  },
 ];
 
 export function getLevelTuning(level: number): LevelTuning {

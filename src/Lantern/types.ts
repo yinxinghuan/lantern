@@ -22,6 +22,7 @@ export interface Monster {
   strikeT: number;        // counts up: 0→TELEGRAPH = warning, then up to +LIVE = live, then resets
   strikeAimX: number;
   strikeAimZ: number;
+  isBoss?: boolean;       // The Dark Lord — only retreats from green strong-light
 }
 
 export interface Crystal {

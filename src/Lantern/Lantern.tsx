@@ -46,6 +46,8 @@ export function Lantern() {
   const [hitFlashKey, setHitFlashKey] = useState(0);
   const [level, setLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [pickupsNow, setPickupsNow] = useState(0);
+  const [exitRevealedKey, setExitRevealedKey] = useState(0);
   // Level intro overlay — appears briefly at the start of every level.
   const [levelTitle, setLevelTitle] = useState<{ level: number; name: string; key: number } | null>(null);
   // Level-clear overlay shown between levels with score bonus.
@@ -138,6 +140,12 @@ export function Lantern() {
       // Update the time-remaining read.
       setTimeLeft(Math.max(0, tuning.timeLimit - d.levelT));
       setLevel(d.level);
+      setPickupsNow(d.levelPickups);
+      // Exit-summon one-shot — pulse the UI when the threshold is hit.
+      if (d.exitSummonedJustNow) {
+        d.exitSummonedJustNow = false;
+        setExitRevealedKey(k => k + 1);
+      }
 
       // Level cleared → show the inter-level overlay and queue the next.
       if (d.levelCleared && !transitioning) {
@@ -257,8 +265,28 @@ export function Lantern() {
             <span className="ln__level-pill-num">L{level}</span>
             <span className="ln__level-pill-name">{getLevelTuning(level).name}</span>
           </div>
+          {/* Exit-summon progress chip — shows how many crystals the player
+              has collected toward the threshold that summons the violet
+              exit stone. Disappears once the exit has been summoned. */}
+          {pickupsNow < getLevelTuning(level).exitNeed && (
+            <div className="ln__exit-progress">
+              <span className="ln__exit-progress-dot" />
+              <span className="ln__exit-progress-text">
+                CRYSTALS&nbsp;<b>{pickupsNow}</b>&nbsp;/&nbsp;{getLevelTuning(level).exitNeed}&nbsp;&nbsp;·&nbsp;&nbsp;EXIT SEALED
+              </span>
+            </div>
+          )}
+          {pickupsNow >= getLevelTuning(level).exitNeed && (
+            <div className="ln__exit-progress ln__exit-progress--open">
+              <span className="ln__exit-progress-dot ln__exit-progress-dot--open" />
+              <span className="ln__exit-progress-text">EXIT REVEALED · FIND THE VIOLET STONE</span>
+            </div>
+          )}
         </div>
       )}
+
+      {/* One-shot full-screen pulse when the exit appears */}
+      {exitRevealedKey > 0 && <div key={`reveal-${exitRevealedKey}`} className="ln__exit-reveal-flash" />}
       {showCanvas && <img className="ln__watermark" src={alteruSvg} alt="AlterU" />}
 
       {/* Floating "+N" — instant satisfaction near the player */}
