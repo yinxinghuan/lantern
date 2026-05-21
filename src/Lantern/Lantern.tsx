@@ -59,8 +59,8 @@ export function Lantern() {
   const { stickRef, view } = useJoystick(phase === 'playing');
 
   const {
-    isInAigram, submitScore, fetchGlobalLeaderboard, fetchFriendsLeaderboard,
-  } = useGameScore('lantern');
+    isInAigram, submitScore, fetchLeaderboard,
+  } = useGameScore();
 
   const haptic = useCallback((kind: 'light' | 'heavy') => {
     if (!('vibrate' in navigator)) return;
@@ -418,8 +418,7 @@ export function Lantern() {
           gameName={t('title')}
           isInAigram={isInAigram}
           onClose={() => setShowLeaderboard(false)}
-          fetchGlobal={fetchGlobalLeaderboard}
-          fetchFriends={fetchFriendsLeaderboard}
+          fetch={fetchLeaderboard}
         />
       )}
     </div>
