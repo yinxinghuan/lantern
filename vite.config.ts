@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  base: '/lantern/',
+  base: './',
   resolve: { alias: { '@shared': path.resolve(__dirname, 'src/shared') } },
   plugins: [react()],
   css: {
